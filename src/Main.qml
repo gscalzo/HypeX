@@ -82,19 +82,23 @@ ApplicationWindow {
         } else {
             presenterWindow.hide()
             player.stop()
+            // Wayland compositors retain a fullscreen window's output when it is
+            // normalized. Take it off-screen first so the saved editor output and
+            // geometry are applied before the window is mapped again.
+            win.hide()
             if (presentationReturnScreen) win.screen = presentationReturnScreen
-            if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
-            else {
-                win.showNormal()
-                if (presentationReturnGeometry.width > 0) {
-                    win.x = presentationReturnGeometry.x
-                    win.y = presentationReturnGeometry.y
-                    win.width = presentationReturnGeometry.width
-                    win.height = presentationReturnGeometry.height
-                }
+            if (presentationReturnGeometry.width > 0) {
+                win.x = presentationReturnGeometry.x
+                win.y = presentationReturnGeometry.y
+                win.width = presentationReturnGeometry.width
+                win.height = presentationReturnGeometry.height
             }
-            win.requestActivate()
-            stage.forceActiveFocus()
+            if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
+            else win.showNormal()
+            Qt.callLater(function() {
+                win.requestActivate()
+                stage.forceActiveFocus()
+            })
         }
     }
     function isBuiltInScreen(screen) {
@@ -341,18 +345,6 @@ ApplicationWindow {
             }
         }
 
-        Shortcut { sequences: ["Left", "Up"]; onActivated: deck.select(deck.selected - 1) }
-        Shortcut { sequences: ["Right", "Down"]; onActivated: deck.select(deck.selected + 1) }
-        Shortcut { sequence: "PgUp"; onActivated: deck.select(deck.selected - 5) }
-        Shortcut { sequence: "PgDown"; onActivated: deck.select(deck.selected + 5) }
-        Shortcut { sequence: "Home"; onActivated: deck.select(0) }
-        Shortcut { sequence: "End"; onActivated: deck.select(deck.count - 1) }
-        Shortcut { sequence: "Escape"; onActivated: win.togglePresent() }
-        Shortcut {
-            sequence: "Space"; enabled: deck.media.video || animation.active; autoRepeat: false
-            onActivated: { if (animation.item) animation.item.paused = !animation.item.paused; else win.toggleVideo() }
-        }
-
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 28; spacing: 22
             RowLayout {
@@ -594,30 +586,30 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+/"; enabled: win.canFormat; onActivated: win.formatSlide("comment") }
     Shortcut { sequences: ["Return", "Enter"]; enabled: !win.popupOpen && !deck.compressingImage && win.overview && !win.presenting; onActivated: win.focusMarkdown() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+N"; onActivated: deck.newDeck() }
-    Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: ["F5", "Ctrl+Space"]; autoRepeat: false; onActivated: win.togglePresent() }
-    Shortcut { sequence: "Escape"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting); onActivated: win.togglePresent() }
+    Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: ["F5", "Ctrl+Space"]; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; autoRepeat: false; onActivated: win.togglePresent() }
+    Shortcut { sequence: "Escape"; context: Qt.ApplicationShortcut; enabled: !win.popupOpen && !deck.compressingImage && win.presenting; onActivated: win.togglePresent() }
     Shortcut { sequence: "Ctrl+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.undo() }
     Shortcut { sequence: "Ctrl+Shift+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.redo() }
     Shortcut { sequence: "Ctrl+D"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.duplicateSlide() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+Return"; onActivated: { win.addSlide() } }
     Shortcut { sequence: "Delete"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.deleteSlide() }
-    Shortcut { sequence: "Right"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 1) }
+    Shortcut { sequence: "Right"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 1) }
     Shortcut { sequence: "Ctrl+Right"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(1) }
     Shortcut { sequence: "Shift+Right"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + 1); if (win.markdown) win.alignSource(false) } }
-    Shortcut { sequence: "Down"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? 1 : win.rowStep)) }
+    Shortcut { sequence: "Down"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? 1 : win.rowStep)) }
     Shortcut { sequence: "Ctrl+Down"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(win.rowStep) }
     Shortcut { sequence: "Shift+Down"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + win.rowStep); if (win.markdown) win.alignSource(false) } }
-    Shortcut { sequence: "Left"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + -1) }
+    Shortcut { sequence: "Left"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + -1) }
     Shortcut { sequence: "Ctrl+Left"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(-1) }
     Shortcut { sequence: "Shift+Left"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + -1); if (win.markdown) win.alignSource(false) } }
-    Shortcut { sequence: "Up"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? -1 : -win.rowStep)) }
+    Shortcut { sequence: "Up"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? -1 : -win.rowStep)) }
     Shortcut { sequence: "Ctrl+Up"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(-win.rowStep) }
     Shortcut { sequence: "Shift+Up"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + -win.rowStep); if (win.markdown) win.alignSource(false) } }
-    Shortcut { sequence: "PgDown"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 5 * win.rowStep) }
-    Shortcut { sequence: "PgUp"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected - 5 * win.rowStep) }
-    Shortcut { sequence: "Home"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(0) }
-    Shortcut { sequence: "End"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(deck.count - 1) }
-    Shortcut { sequence: "Space"; enabled: !win.popupOpen && !deck.compressingImage && win.presenting && (deck.media.video || animation.active); autoRepeat: false; onActivated: { if (animation.item) animation.item.paused = !animation.item.paused; else win.toggleVideo() } }
+    Shortcut { sequence: "PgDown"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 5 * win.rowStep) }
+    Shortcut { sequence: "PgUp"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected - 5 * win.rowStep) }
+    Shortcut { sequence: "Home"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(0) }
+    Shortcut { sequence: "End"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(deck.count - 1) }
+    Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; enabled: !win.popupOpen && !deck.compressingImage && win.presenting && (deck.media.video || animation.active); autoRepeat: false; onActivated: { if (animation.item) animation.item.paused = !animation.item.paused; else win.toggleVideo() } }
     Shortcut { sequence: "Ctrl+V"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.pasteMedia() }
     component ToolbarIconButton: ToolButton {
         id: toolbarButton

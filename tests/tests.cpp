@@ -2028,6 +2028,13 @@ class HypeTests : public QObject {
         QTest::keyClick(window, Qt::Key_Space, Qt::ControlModifier);
         QVERIFY(!window->property("presenting").toBool());
         QVERIFY(editor->isVisible());
+        auto presenterWindow = window->findChild<QQuickWindow *>("presenterWindow");
+        QVERIFY(presenterWindow);
+        window->setProperty("presenting", true);
+        presenterWindow->show();
+        presenterWindow->requestActivate();
+        QTest::keyClick(presenterWindow, Qt::Key_Escape);
+        QTRY_VERIFY(!window->property("presenting").toBool());
         QString trial2025 = QFINDTESTDATA("../trials/rails-world-2025/presentation.md");
         if (!trial2025.isEmpty()) {
             QVERIFY(d.loadPath(trial2025));
