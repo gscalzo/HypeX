@@ -140,6 +140,12 @@ class HypeTests : public QObject {
         QVERIFY(FileDialog::choose(false, "/tmp", "Media", {"*.png"}, &error).isEmpty());
         QVERIFY(!error.isEmpty());
     }
+    void speakerNotesIgnoreDirectivesAndCode() {
+        Deck deck;
+        deck.editSlide("<!-- First note -->\n\n<!-- hype background=\"#112233\" -->\n\n# Title\n\n"
+                       "```html\n<!-- Shown as code, not a note -->\n```\n\n<!-- Second\nline -->");
+        QCOMPARE(deck.speakerNotes(), QString("First note\n\nSecond\nline"));
+    }
     void followsDesktopTheme() {
         QTemporaryDir files;
         const QString current = files.path() + "/current";

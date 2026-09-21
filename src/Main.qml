@@ -62,8 +62,27 @@ ApplicationWindow {
     property int dragScroll: 0
     function togglePresent() {
         presenting = !presenting
-        if (presenting) { win.showFullScreen(); stage.forceActiveFocus() }
-        else { player.stop(); win.showNormal() }
+        if (presenting) {
+            win.showFullScreen()
+            const notesScreen = alternateScreen()
+            if (notesScreen) {
+                presenterWindow.screen = notesScreen
+                presenterWindow.showFullScreen()
+                Qt.callLater(function() { presenterWindow.requestActivate() })
+            } else stage.forceActiveFocus()
+        } else {
+            presenterWindow.hide()
+            player.stop()
+            win.showNormal()
+            win.requestActivate()
+            stage.forceActiveFocus()
+        }
+    }
+    function alternateScreen() {
+        const screens = Qt.application.screens
+        for (let i = 0; i < screens.length; ++i)
+            if (screens[i] !== win.screen) return screens[i]
+        return null
     }
     function toggleVideo() {
         if (player.playbackState === MediaPlayer.PlayingState) player.pause()
@@ -262,9 +281,127 @@ ApplicationWindow {
     }
     onPresentingChanged: { if (presenting && deck.media.video && deck.media.autoplay) player.play() }
     onClosing: function(close) {
+        if (presenting) {
+            presenting = false
+            presenterWindow.hide()
+            player.stop()
+        }
         if (!allowClose && !deck.flushAutosave() && deck.dirty) {
             close.accepted = false
             closeDialog.open()
+        }
+    }
+    ApplicationWindow {
+        id: presenterWindow; objectName: "presenterWindow"
+        visible: false; minimumWidth: 800; minimumHeight: 520
+        title: deck.title + " — Presenter View"
+        color: win.ui.background
+        palette.window: win.ui.panel; palette.base: win.ui.background; palette.text: win.ui.foreground
+        palette.windowText: win.ui.foreground; palette.button: win.ui.button; palette.buttonText: win.ui.foreground
+        palette.highlight: win.ui.selection; palette.highlightedText: win.ui.selectionText
+        onClosing: function(close) {
+            if (win.presenting) {
+                close.accepted = false
+                win.togglePresent()
+            }
+        }
+
+        Shortcut { sequences: ["Left", "Up"]; onActivated: deck.select(deck.selected - 1) }
+        Shortcut { sequences: ["Right", "Down"]; onActivated: deck.select(deck.selected + 1) }
+        Shortcut { sequence: "PgUp"; onActivated: deck.select(deck.selected - 5) }
+        Shortcut { sequence: "PgDown"; onActivated: deck.select(deck.selected + 5) }
+        Shortcut { sequence: "Home"; onActivated: deck.select(0) }
+        Shortcut { sequence: "End"; onActivated: deck.select(deck.count - 1) }
+        Shortcut { sequence: "Escape"; onActivated: win.togglePresent() }
+        Shortcut {
+            sequence: "Space"; enabled: deck.media.video || animation.active; autoRepeat: false
+            onActivated: { if (animation.item) animation.item.paused = !animation.item.paused; else win.toggleVideo() }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 28; spacing: 22
+            RowLayout {
+                Layout.fillWidth: true; spacing: 16
+                Label {
+                    text: deck.title; color: win.ui.foreground; font.pixelSize: 22; font.bold: true
+                    Layout.fillWidth: true; elide: Text.ElideRight
+                }
+                Label {
+                    text: "Slide " + (deck.selected + 1) + " of " + deck.count
+                    color: win.ui.muted; font.pixelSize: 16
+                }
+                Button {
+                    text: "End show"
+                    onClicked: win.togglePresent()
+                    contentItem: Text { text: parent.text; color: win.ui.foreground; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; Layout.preferredHeight: presenterWindow.height * 0.42; spacing: 22
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 2
+                    Label { text: "CURRENT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
+                    Item {
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, parent.height * 16 / 9)
+                            height: width * 9 / 16
+                            color: deck.background; border.color: win.ui.border
+                            Image {
+                                anchors.fill: parent
+                                source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
+                                asynchronous: true; retainWhileLoading: true; cache: true
+                                sourceSize: Qt.size(960, 540)
+                            }
+                        }
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
+                    Label { text: "NEXT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
+                    Item {
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, parent.height * 16 / 9)
+                            height: width * 9 / 16
+                            color: deck.background; border.color: win.ui.border
+                            Image {
+                                anchors.fill: parent
+                                source: deck.selected + 1 < deck.count
+                                    ? "image://slides/" + (deck.revision, deck.renderId(deck.selected + 1)) : ""
+                                asynchronous: true; retainWhileLoading: true; cache: true
+                                sourceSize: Qt.size(640, 360)
+                            }
+                            Label {
+                                anchors.centerIn: parent; visible: deck.selected + 1 >= deck.count
+                                text: "End of presentation"; color: win.ui.muted; font.pixelSize: 16
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: win.ui.border }
+            Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
+                TextArea {
+                    objectName: "presenterNotes"; readOnly: true; selectByMouse: true
+                    text: deck.speakerNotes || "No speaker notes for this slide."
+                    color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
+                    font.pixelSize: 24; wrapMode: TextEdit.Wrap
+                    leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
+                    background: null
+                }
+            }
+            Label {
+                Layout.fillWidth: true
+                text: "←/→ change slide   ·   Space plays media   ·   Esc ends the show"
+                color: win.ui.muted; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter
+            }
         }
     }
     Dialog {
