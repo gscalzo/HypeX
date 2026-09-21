@@ -99,7 +99,7 @@ QString speakerNotes(const QString &source) {
     const QString visible = outsideCode(source);
     auto matches = QRegularExpression("<!--[\\s\\S]*?-->").globalMatch(visible);
     QStringList notes;
-    static const QRegularExpression directive("^hype(?:\\s|$)",
+    static const QRegularExpression directive("^hype(?:[\\s:]|$)",
                                                QRegularExpression::CaseInsensitiveOption);
     while (matches.hasNext()) {
         const auto match = matches.next();

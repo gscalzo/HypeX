@@ -69,13 +69,11 @@ ApplicationWindow {
             presentationReturnScreen = win.screen
             presentationReturnVisibility = win.visibility
             presentationReturnGeometry = Qt.rect(win.x, win.y, win.width, win.height)
-            const audience = preferredAudienceScreen()
-            const notesScreen = audience === presentationReturnScreen
-                ? alternateScreen(audience) : presentationReturnScreen
-            win.screen = audience
+            const screens = presentationScreens(win.screen, Qt.application.screens)
+            win.screen = screens.audience
             win.showFullScreen()
-            if (notesScreen) {
-                presenterWindow.screen = notesScreen
+            if (screens.notes) {
+                presenterWindow.screen = screens.notes
                 presenterWindow.showFullScreen()
                 Qt.callLater(function() { presenterWindow.requestActivate() })
             } else stage.forceActiveFocus()
@@ -105,23 +103,28 @@ ApplicationWindow {
         const name = screen && screen.name ? screen.name.toLowerCase() : ""
         return name.indexOf("edp") >= 0 || name.indexOf("lvds") >= 0 || name.indexOf("dsi") >= 0
     }
-    function alternateScreen(screen) {
-        const screens = Qt.application.screens
-        for (let i = 0; i < screens.length; ++i)
-            if (screens[i] !== screen) return screens[i]
-        return null
+    function sameScreen(a, b) {
+        // Window.screen and Qt.application.screens wrap the same display in
+        // distinct objects, so identity comparison never matches between them.
+        return !!a && !!b && a.name === b.name && a.virtualX === b.virtualX && a.virtualY === b.virtualY
     }
-    function preferredAudienceScreen() {
-        const screens = Qt.application.screens
-        if (screens.length < 2 || !isBuiltInScreen(win.screen)) return win.screen
-        // Connector names normally expose laptop panels as eDP/LVDS/DSI. Prefer
-        // HDMI explicitly, then any non-built-in output (including USB-C/DP docks).
-        for (let i = 0; i < screens.length; ++i)
-            if (screens[i] !== win.screen && screens[i].name.toLowerCase().indexOf("hdmi") >= 0)
-                return screens[i]
-        for (let i = 0; i < screens.length; ++i)
-            if (screens[i] !== win.screen && !isBuiltInScreen(screens[i])) return screens[i]
-        return alternateScreen(win.screen) || win.screen
+    // Pure so tests can pass fake screens. Picks the audience screen and the
+    // presenter screen, which is null without a second display.
+    function presentationScreens(current, screens) {
+        const other = function(accept) {
+            for (let i = 0; i < screens.length; ++i)
+                if (!sameScreen(screens[i], current) && accept(screens[i])) return screens[i]
+            return null
+        }
+        let audience = current
+        if (screens.length > 1 && isBuiltInScreen(current)) {
+            // Connector names normally expose laptop panels as eDP/LVDS/DSI. Prefer
+            // HDMI explicitly, then any non-built-in output (including USB-C/DP docks).
+            audience = other(s => s.name.toLowerCase().indexOf("hdmi") >= 0)
+                || other(s => !isBuiltInScreen(s)) || other(s => true) || current
+        }
+        const notes = sameScreen(audience, current) ? other(s => true) : current
+        return { audience: audience, notes: notes }
     }
     function toggleVideo() {
         if (player.playbackState === MediaPlayer.PlayingState) player.pause()
@@ -320,14 +323,16 @@ ApplicationWindow {
     }
     onPresentingChanged: { if (presenting && deck.media.video && deck.media.autoplay) player.play() }
     onClosing: function(close) {
+        if (!allowClose && !deck.flushAutosave() && deck.dirty) {
+            close.accepted = false
+            if (presenting) togglePresent()
+            closeDialog.open()
+            return
+        }
         if (presenting) {
             presenting = false
             presenterWindow.hide()
             player.stop()
-        }
-        if (!allowClose && !deck.flushAutosave() && deck.dirty) {
-            close.accepted = false
-            closeDialog.open()
         }
     }
     ApplicationWindow {
