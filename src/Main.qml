@@ -60,11 +60,20 @@ ApplicationWindow {
     property real dragY: 0
     property real dragX: 0
     property int dragScroll: 0
+    property var presentationReturnScreen: null
+    property int presentationReturnVisibility: Window.Windowed
+    property rect presentationReturnGeometry: Qt.rect(0, 0, 0, 0)
     function togglePresent() {
         presenting = !presenting
         if (presenting) {
+            presentationReturnScreen = win.screen
+            presentationReturnVisibility = win.visibility
+            presentationReturnGeometry = Qt.rect(win.x, win.y, win.width, win.height)
+            const audience = preferredAudienceScreen()
+            const notesScreen = audience === presentationReturnScreen
+                ? alternateScreen(audience) : presentationReturnScreen
+            win.screen = audience
             win.showFullScreen()
-            const notesScreen = alternateScreen()
             if (notesScreen) {
                 presenterWindow.screen = notesScreen
                 presenterWindow.showFullScreen()
@@ -73,16 +82,42 @@ ApplicationWindow {
         } else {
             presenterWindow.hide()
             player.stop()
-            win.showNormal()
+            if (presentationReturnScreen) win.screen = presentationReturnScreen
+            if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
+            else {
+                win.showNormal()
+                if (presentationReturnGeometry.width > 0) {
+                    win.x = presentationReturnGeometry.x
+                    win.y = presentationReturnGeometry.y
+                    win.width = presentationReturnGeometry.width
+                    win.height = presentationReturnGeometry.height
+                }
+            }
             win.requestActivate()
             stage.forceActiveFocus()
         }
     }
-    function alternateScreen() {
+    function isBuiltInScreen(screen) {
+        const name = screen && screen.name ? screen.name.toLowerCase() : ""
+        return name.indexOf("edp") >= 0 || name.indexOf("lvds") >= 0 || name.indexOf("dsi") >= 0
+    }
+    function alternateScreen(screen) {
         const screens = Qt.application.screens
         for (let i = 0; i < screens.length; ++i)
-            if (screens[i] !== win.screen) return screens[i]
+            if (screens[i] !== screen) return screens[i]
         return null
+    }
+    function preferredAudienceScreen() {
+        const screens = Qt.application.screens
+        if (screens.length < 2 || !isBuiltInScreen(win.screen)) return win.screen
+        // Connector names normally expose laptop panels as eDP/LVDS/DSI. Prefer
+        // HDMI explicitly, then any non-built-in output (including USB-C/DP docks).
+        for (let i = 0; i < screens.length; ++i)
+            if (screens[i] !== win.screen && screens[i].name.toLowerCase().indexOf("hdmi") >= 0)
+                return screens[i]
+        for (let i = 0; i < screens.length; ++i)
+            if (screens[i] !== win.screen && !isBuiltInScreen(screens[i])) return screens[i]
+        return alternateScreen(win.screen) || win.screen
     }
     function toggleVideo() {
         if (player.playbackState === MediaPlayer.PlayingState) player.pause()
