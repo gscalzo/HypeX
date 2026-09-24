@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <climits>
 #include <functional>
-#include <map>
 #include <tuple>
 #include <limits>
 #include <memory>
@@ -124,8 +123,8 @@ QString cleanLabel(QString text) {
     static const QRegularExpression br("<br\\s*/?>", QRegularExpression::CaseInsensitiveOption),
         tags("</?[a-zA-Z][^>]*>"), icons("\\bfa[bklrs]?:fa-[\\w-]+\\s*"), entity("(?:&#?|#)(\\w+);");
     text.replace(br, "\n").remove(tags).remove(icons);
-    static const QHash<QString, QString> named{{"quot", "\""}, {"amp", "&"}, {"lt", "<"}, {"gt", ">"},
-                                               {"apos", "'"}, {"nbsp", " "}};
+    static constexpr const char *named[][2]{{"quot", "\""}, {"amp", "&"}, {"lt", "<"},
+                                            {"gt", ">"},     {"apos", "'"}, {"nbsp", " "}};
     QString out;
     int last = 0;
     for (auto it = entity.globalMatch(text); it.hasNext();) {
@@ -136,8 +135,10 @@ QString cleanLabel(QString text) {
         if (numeric && code > 0 && code <= 0x10FFFF) {
             const char32_t c = code;
             replacement = QString::fromUcs4(&c, 1);
-        } else if (named.contains(m.captured(1)))
-            replacement = named.value(m.captured(1));
+        } else
+            for (const auto &entry : named)
+                if (m.captured(1) == QLatin1StringView(entry[0]))
+                    replacement = QLatin1StringView(entry[1]);
         out += text.mid(last, m.capturedStart() - last) + replacement;
         last = m.capturedEnd();
     }
@@ -248,13 +249,15 @@ void Parser::parse(const QString &source) {
     const auto m = header.match(list[0].text);
     if (!m.hasMatch()) {
         const QString type = list[0].text.section(QRegularExpression("\\s"), 0, 0);
-        static const QStringList known{
+        static constexpr const char *known[]{
             "sequenceDiagram", "classDiagram", "stateDiagram", "stateDiagram-v2", "erDiagram",
             "journey", "gantt", "pie", "quadrantChart", "requirementDiagram", "gitGraph",
             "C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment", "mindmap",
             "timeline", "sankey-beta", "xychart-beta", "block-beta", "packet-beta", "kanban",
             "architecture-beta", "radar-beta"};
-        fail(known.contains(type) ? QString("Hype draws Mermaid flowcharts; %1 isn't supported yet").arg(type)
+        const bool diagram = std::any_of(std::begin(known), std::end(known),
+                                         [&](const char *name) { return type == QLatin1StringView(name); });
+        fail(diagram ? QString("Hype draws Mermaid flowcharts; %1 isn't supported yet").arg(type)
                                   : QString("Start the diagram with “flowchart TD” or “flowchart LR”"));
         return;
     }
@@ -275,20 +278,20 @@ void Parser::parse(const QString &source) {
 }
 
 bool Parser::statement(const QString &text) {
-    auto starts = [&](const QString &word) {
-        return text == word || (text.startsWith(word) && text.size() > word.size() && text[word.size()].isSpace());
-    };
-    auto rest = [&](const QString &word) { return text.mid(word.size()).trimmed(); };
+    // The first word decides what kind of statement this is.
+    const qsizetype split = std::find_if(text.begin(), text.end(), [](QChar c) { return c.isSpace(); }) - text.begin();
+    const QStringView keyword = QStringView(text).left(split);
+    const QString rest = text.mid(split).trimmed();
     if (text == "end") {
         if (stack.isEmpty())
             return fail("“end” without a subgraph");
         stack.removeLast();
         return true;
     }
-    if (starts("subgraph")) {
-        const QString spec = rest("subgraph");
+    if (keyword == u"subgraph") {
+        const QString &spec = rest;
         static const QRegularExpression named(R"(^([^\s\["]+)\s*\[(.*)\]$)");
-        Cluster cluster;
+        Cluster &cluster = d.clusters.emplaceBack();
         if (const auto m = named.match(spec); m.hasMatch()) {
             cluster.id = m.captured(1);
             cluster.title = cleanLabel(m.captured(2));
@@ -297,15 +300,14 @@ bool Parser::statement(const QString &text) {
             cluster.id = spec.startsWith('"') ? cluster.title : spec;
         }
         if (cluster.id.isEmpty())
-            cluster.id = QString("subgraph-%1").arg(d.clusters.size());
+            cluster.id = QString("subgraph-%1").arg(d.clusters.size() - 1);
         cluster.parent = stack.isEmpty() ? -1 : stack.last();
-        d.clusters.append(cluster);
         stack.append(d.clusters.size() - 1);
         return true;
     }
-    if (starts("direction")) {
+    if (keyword == u"direction") {
         Dir dir;
-        if (!parseDir(rest("direction"), &dir))
+        if (!parseDir(rest, &dir))
             return fail("Unknown direction; use TB, BT, LR, or RL");
         if (stack.isEmpty())
             d.dir = dir;
@@ -315,25 +317,25 @@ bool Parser::statement(const QString &text) {
         }
         return true;
     }
-    if (starts("classDef")) {
-        const QString spec = rest("classDef");
+    if (keyword == u"classDef") {
+        const QString &spec = rest;
         for (const QString &name : spec.section(' ', 0, 0).split(',', Qt::SkipEmptyParts))
             classDefs[name.trimmed()].merge(parseStyle(spec.section(' ', 1)));
         return true;
     }
-    if (starts("class")) {
-        const QString spec = rest("class");
+    if (keyword == u"class") {
+        const QString &spec = rest;
         for (const QString &id : spec.section(' ', 0, 0).split(',', Qt::SkipEmptyParts))
             assigned.append({id.trimmed(), spec.section(' ', 1).trimmed()});
         return true;
     }
-    if (starts("style")) {
-        const QString spec = rest("style");
+    if (keyword == u"style") {
+        const QString &spec = rest;
         styles[spec.section(' ', 0, 0)].merge(parseStyle(spec.section(' ', 1)));
         return true;
     }
-    for (const QString ignored : {"linkStyle", "click", "accTitle", "accDescr", "title"})
-        if (starts(ignored) || text.startsWith(ignored + ':'))
+    for (const QStringView ignored : {u"linkStyle", u"click", u"accTitle", u"accDescr", u"title"})
+        if (keyword == ignored || (keyword.startsWith(ignored) && keyword.mid(ignored.size()).startsWith(u':')))
             return true;
     return chain(text);
 }
@@ -393,10 +395,10 @@ bool Parser::node(const QString &s, int &p, QString &id) {
                                  : QString("Expected a node name"));
     const int index = ensure(id);
     struct Delimiter {
-        QString open, close;
+        const char *open, *close;
         Shape shape;
     };
-    static const QVector<Delimiter> delimiters{
+    static constexpr Delimiter delimiters[]{
         {"(((", ")))", Shape::DoubleCircle}, {"((", "))", Shape::Circle}, {"([", "])", Shape::Stadium},
         {"[[", "]]", Shape::Subroutine},     {"[(", ")]", Shape::Cylinder}, {"{{", "}}", Shape::Hexagon},
         {"[/", "/]", Shape::Lean},           {"[/", "\\]", Shape::Trapezoid},
@@ -404,23 +406,23 @@ bool Parser::node(const QString &s, int &p, QString &id) {
         {"(", ")", Shape::Round},            {"[", "]", Shape::Rect},
         {"{", "}", Shape::Diamond},          {">", "]", Shape::Flag}};
     int best = -1, bestClose = -1;
-    for (int i = 0; i < delimiters.size(); ++i) {
+    for (int i = 0; i < int(std::size(delimiters)); ++i) {
         const auto &delimiter = delimiters[i];
         // Once an opening matches, only its alternative closings compete.
-        if (best >= 0 && delimiter.open != delimiters[best].open)
+        if (best >= 0 && qstrcmp(delimiter.open, delimiters[best].open))
             break;
-        if (!QStringView(s).mid(p).startsWith(delimiter.open))
+        if (!QStringView(s).mid(p).startsWith(QLatin1StringView(delimiter.open)))
             continue;
-        const int from = p + delimiter.open.size();
+        const int from = p + qstrlen(delimiter.open);
         int close = -1;
         if (from < s.size() && s[from] == '"') {
             const int quote = s.indexOf('"', from + 1);
             if (quote < 0)
                 return fail("A node label is missing its closing quote");
-            if (QStringView(s).mid(quote + 1).startsWith(delimiter.close))
+            if (QStringView(s).mid(quote + 1).startsWith(QLatin1StringView(delimiter.close)))
                 close = quote + 1;
         } else
-            close = s.indexOf(delimiter.close, from);
+            close = s.indexOf(QLatin1StringView(delimiter.close), from);
         if (close >= 0 && (best < 0 || close < bestClose)) {
             best = i;
             bestClose = close;
@@ -428,17 +430,21 @@ bool Parser::node(const QString &s, int &p, QString &id) {
     }
     if (best >= 0) {
         const auto &delimiter = delimiters[best];
-        const int from = p + delimiter.open.size();
+        const int from = p + qstrlen(delimiter.open);
         d.nodes[index].label = cleanLabel(s.mid(from, bestClose - from));
         d.nodes[index].shape = delimiter.shape;
-        p = bestClose + delimiter.close.size();
+        p = bestClose + qstrlen(delimiter.close);
     } else if (p < s.size() && QStringLiteral("[({").contains(s[p]))
         return fail(QString("The shape of “%1” is missing its closing bracket").arg(id));
     if (QStringView(s).mid(p).startsWith(QLatin1String("@{"))) {
         const int close = s.indexOf('}', p);
         if (close < 0)
             return fail(QString("The @{ … } of “%1” is missing its closing brace").arg(id));
-        static const QHash<QString, Shape> shapes{
+        struct Name {
+            const char *name;
+            Shape shape;
+        };
+        static constexpr Name shapes[]{
             {"rect", Shape::Rect},          {"rectangle", Shape::Rect},      {"proc", Shape::Rect},
             {"process", Shape::Rect},       {"rounded", Shape::Round},       {"event", Shape::Round},
             {"stadium", Shape::Stadium},    {"pill", Shape::Stadium},        {"terminal", Shape::Stadium},
@@ -461,9 +467,11 @@ bool Parser::node(const QString &s, int &p, QString &id) {
             const auto m = it.next();
             const QString value = m.captured(2).trimmed();
             if (m.captured(1) == "shape") {
-                if (!shapes.contains(value))
+                const auto shape = std::find_if(std::begin(shapes), std::end(shapes),
+                                                [&](const Name &name) { return value == QLatin1StringView(name.name); });
+                if (shape == std::end(shapes))
                     return fail(QString("Hype can't draw the “%1” shape yet").arg(value));
-                d.nodes[index].shape = shapes.value(value);
+                d.nodes[index].shape = shape->shape;
             } else if (m.captured(1) == "label")
                 d.nodes[index].label = cleanLabel(value);
         }
@@ -575,9 +583,8 @@ bool Parser::pipe(const QString &s, int &p, Edge &edge) {
 int Parser::ensure(const QString &id) {
     int index = d.nodeIndex.value(id, -1);
     if (index < 0) {
-        Node node;
+        Node &node = d.nodes.emplaceBack();
         node.id = node.label = id;
-        d.nodes.append(node);
         index = d.nodes.size() - 1;
         d.nodeIndex.insert(id, index);
     }
@@ -593,14 +600,10 @@ void Parser::finish() {
     for (int i = 0; i < d.clusters.size(); ++i)
         if (!clusterIndex.contains(d.clusters[i].id))
             clusterIndex.insert(d.clusters[i].id, i);
-    QVector<Node> kept;
+    d.nodes.removeIf([&](const Node &node) { return clusterIndex.contains(node.id); });
     QHash<QString, int> index;
-    for (const auto &node : d.nodes)
-        if (!clusterIndex.contains(node.id)) {
-            index.insert(node.id, kept.size());
-            kept.append(node);
-        }
-    d.nodes = kept;
+    for (int i = 0; i < d.nodes.size(); ++i)
+        index.insert(d.nodes[i].id, i);
     d.nodeIndex = index;
     auto resolve = [&](const QString &id) {
         End end;
@@ -728,7 +731,7 @@ QSizeF layoutLevel(Diagram &d, int level) {
     };
     QVector<Item> items;
     QVector<QVector<Neighbor>> preds, succs;
-    QHash<int, int> nodeItem, clusterItem;
+    QVector<int> nodeItem(d.nodes.size(), -1), clusterItem(d.clusters.size(), -1);
     auto chainFrom = [&](int c) {
         QVector<int> chain;
         for (; c != level; c = d.clusters[c].parent)
@@ -748,25 +751,25 @@ QSizeF layoutLevel(Diagram &d, int level) {
             Item item;
             item.node = i;
             item.chain = chainFrom(d.nodes[i].cluster);
-            nodeItem.insert(i, add(item, d.nodes[i].size));
+            nodeItem[i] = add(item, d.nodes[i].size);
         }
     // A self-loop bulges out across the flow, which is along the rank; keep neighbors clear of it.
     for (const auto &edge : d.edges)
         if (edge.loop && edge.level == level) {
             const QSizeF label = edge.labelSize;
-            items[nodeItem.value(edge.a.index)].w += 2 * (loopReach + (across ? label.height() : label.width()));
+            items[nodeItem[edge.a.index]].w += 2 * (loopReach + (across ? label.height() : label.width()));
         }
     for (int i = 0; i < d.clusters.size(); ++i)
         if (!d.clusters[i].open && d.clusters[i].host == level) {
             Item item;
             item.cluster = i;
             item.chain = chainFrom(d.clusters[i].parent);
-            clusterItem.insert(i, add(item, d.clusters[i].size));
+            clusterItem[i] = add(item, d.clusters[i].size);
         }
     const int real = items.size();
     if (!real)
         return {};
-    auto itemOf = [&](End end) { return end.cluster ? clusterItem.value(end.index) : nodeItem.value(end.index); };
+    auto itemOf = [&](End end) { return end.cluster ? clusterItem[end.index] : nodeItem[end.index]; };
 
     struct Link {
         int u, v, edge, minlen;
@@ -797,21 +800,21 @@ QSizeF layoutLevel(Diagram &d, int level) {
         outgoing[links[k].u].append(k);
         ++incoming[links[k].v];
     }
-    std::function<void(int)> visit = [&](int u) {
+    auto visit = [&](auto &self, int u) -> void {
         state[u] = 1;
         for (int k : outgoing[u]) {
             const int v = links[k].v;
             if (state[v] == 1)
                 links[k].reversed = true;
             else if (!state[v])
-                visit(v);
+                self(self, v);
         }
         state[u] = 2;
     };
     for (int pass = 0; pass < 2; ++pass)
         for (int u = 0; u < real; ++u)
             if (!state[u] && (pass || !incoming[u]))
-                visit(u);
+                visit(visit, u);
 
     // Rank by longest path, then pull each source down next to its first successor.
     QVector<QVector<int>> in(real), out(real);
@@ -882,18 +885,13 @@ QSizeF layoutLevel(Diagram &d, int level) {
     // Each open subgraph gets a border item on either side in every rank it spans, chained
     // tightly from rank to rank so its sides run straight.
     QVector<int> groups;
-    QHash<int, QPair<int, int>> span;
+    QVector<QPair<int, int>> span(d.clusters.size(), {INT_MAX, -1});
     for (int i = 0; i < items.size(); ++i)
-        for (int g : items[i].chain) {
-            auto it = span.find(g);
-            if (it == span.end())
-                span.insert(g, {items[i].rank, items[i].rank});
-            else
-                *it = {qMin(it->first, items[i].rank), qMax(it->second, items[i].rank)};
-        }
-    QHash<int, QVector<int>> starts, ends;
+        for (int g : items[i].chain)
+            span[g] = {qMin(span[g].first, items[i].rank), qMax(span[g].second, items[i].rank)};
+    QVector<QVector<int>> starts(d.clusters.size()), ends(d.clusters.size());
     for (int g = 0; g < d.clusters.size(); ++g) {
-        if (!span.contains(g))
+        if (span[g].second < 0)
             continue;
         groups.append(g);
         for (int r = span[g].first; r <= span[g].second; ++r)
@@ -915,22 +913,20 @@ QSizeF layoutLevel(Diagram &d, int level) {
     // Order each rank: depth-first placement, then barycenter sweeps, keeping the fewest crossings.
     // Arranging sorts whole subgraphs as blocks, then what's inside them, so members stay together.
     QVector<qreal> key(n, 0);
-    std::function<QVector<int>(const QVector<int> &, int)> arrange = [&](const QVector<int> &members, int depth) {
+    auto arrange = [&](auto &self, const QVector<int> &members, int depth) -> QVector<int> {
         struct Unit {
             int group;
             QVector<int> members;
             qreal key;
         };
         QVector<Unit> units;
-        QHash<int, int> at;
         for (int m : members) {
             if (items[m].chain.size() > depth) {
                 const int g = items[m].chain[depth];
-                if (!at.contains(g)) {
-                    at.insert(g, units.size());
-                    units.append({g, {}, 0});
-                }
-                units[at.value(g)].members.append(m);
+                auto unit = std::find_if(units.begin(), units.end(), [&](const Unit &u) { return u.group == g; });
+                if (unit == units.end())
+                    unit = units.insert(units.end(), {g, {}, 0});
+                unit->members.append(m);
             } else
                 units.append({-1, {m}, items[m].border ? items[m].border * 1e18 : key[m]});
         }
@@ -949,24 +945,24 @@ QSizeF layoutLevel(Diagram &d, int level) {
         std::stable_sort(units.begin(), units.end(), [](const Unit &a, const Unit &b) { return a.key < b.key; });
         QVector<int> ordered;
         for (const auto &unit : units)
-            ordered += unit.group >= 0 ? arrange(unit.members, depth + 1) : unit.members;
+            ordered += unit.group >= 0 ? self(self, unit.members, depth + 1) : unit.members;
         return ordered;
     };
     QVector<QVector<int>> layers(ranks);
     QVector<bool> seen(n, false);
-    std::function<void(int)> place = [&](int i) {
+    auto place = [&](auto &self, int i) -> void {
         if (seen[i])
             return;
         seen[i] = true;
         layers[items[i].rank].append(i);
         for (const auto &next : succs[i])
-            place(next.item);
+            self(self, next.item);
     };
     for (int i = 0; i < real; ++i)
         if (preds[i].isEmpty())
-            place(i);
+            place(place, i);
     for (int i = 0; i < n; ++i)
-        place(i);
+        place(place, i);
     QVector<int> position(n);
     auto index = [&](const QVector<QVector<int>> &all) {
         for (const auto &layer : all)
@@ -976,7 +972,7 @@ QSizeF layoutLevel(Diagram &d, int level) {
     for (auto &layer : layers) {
         for (int i = 0; i < layer.size(); ++i)
             key[layer[i]] = i;
-        layer = arrange(layer, 0);
+        layer = arrange(arrange, layer, 0);
     }
     auto crossings = [&]() {
         int total = 0;
@@ -1006,7 +1002,7 @@ QSizeF layoutLevel(Diagram &d, int level) {
                     sum += position[neighbor.item];
                 key[layer[i]] = neighbors.isEmpty() ? qreal(i) : sum / neighbors.size();
             }
-            layer = arrange(layer, 0);
+            layer = arrange(arrange, layer, 0);
             for (int i = 0; i < layer.size(); ++i)
                 position[layer[i]] = i;
         }
@@ -1168,19 +1164,19 @@ QSizeF layoutLevel(Diagram &d, int level) {
     QVector<qreal> thickness(ranks, 0), y(ranks, 0), before(ranks, 0), after(ranks, 0);
     for (const auto &item : items)
         thickness[item.rank] = qMax(thickness[item.rank], item.h);
-    std::function<qreal(int, bool)> rim = [&](int g, bool top) {
+    auto rim = [&](auto &self, int g, bool top) -> qreal {
         qreal inner = 0;
         for (int c : groups)
             if (d.clusters[c].parent == g &&
                 (top ? span[c].first == span[g].first : span[c].second == span[g].second))
-                inner = qMax(inner, rim(c, top));
+                inner = qMax(inner, self(self, c, top));
         // The title sits on whichever end of the ranks is the top of the slide.
         const bool titled = top ? dir == Dir::TB : dir == Dir::BT;
         return clusterPad + (titled ? d.clusters[g].titleHeight : 0) + inner;
     };
     for (int g : groups) {
-        before[span[g].first] = qMax(before[span[g].first], rim(g, true));
-        after[span[g].second] = qMax(after[span[g].second], rim(g, false));
+        before[span[g].first] = qMax(before[span[g].first], rim(rim, g, true));
+        after[span[g].second] = qMax(after[span[g].second], rim(rim, g, false));
     }
     y[0] = before[0] + thickness[0] / 2;
     for (int r = 1; r < ranks; ++r)
@@ -1209,8 +1205,8 @@ QSizeF layoutLevel(Diagram &d, int level) {
         for (int i : ends[g])
             last = qMax(last, x[i]);
         const int top = span[g].first, bottom = span[g].second;
-        d.clusters[g].box = QRectF(point(first, y[top] - thickness[top] / 2 - rim(g, true)),
-                                   point(last, y[bottom] + thickness[bottom] / 2 + rim(g, false)))
+        d.clusters[g].box = QRectF(point(first, y[top] - thickness[top] / 2 - rim(rim, g, true)),
+                                   point(last, y[bottom] + thickness[bottom] / 2 + rim(rim, g, false)))
                                 .normalized();
     }
     for (const auto &link : links) {
@@ -1372,22 +1368,23 @@ void layout(Diagram &d) {
         edge.loop = edge.a == edge.b && !edge.a.cluster;
         edge.drawable = edge.loop || !(edge.liftedA == edge.liftedB);
     }
-    QVector<int> inner;
-    for (int c = 0; c < d.clusters.size(); ++c)
-        if (!d.clusters[c].open)
-            inner.append(c);
-    std::stable_sort(inner.begin(), inner.end(),
-                     [&](int a, int b) { return d.clusters[a].depth > d.clusters[b].depth; });
-    for (int c : inner) {
+    // Closed subgraphs lay out innermost first, so each knows its size when its parent lays out.
+    int deepest = -1;
+    for (const auto &cluster : d.clusters)
+        deepest = qMax(deepest, cluster.depth);
+    for (int depth = deepest; depth >= 0; --depth)
+        for (int c = 0; c < d.clusters.size(); ++c) {
         auto &cluster = d.clusters[c];
+        if (cluster.open || cluster.depth != depth)
+            continue;
         const QSizeF content = layoutLevel(d, c);
         const qreal width = qMax(content.width(), cluster.titleWidth) + 2 * clusterPad;
         cluster.size = {qMax(width, 80.0), content.height() + 2 * clusterPad + cluster.titleHeight};
         cluster.content = {(cluster.size.width() - content.width()) / 2, clusterPad + cluster.titleHeight};
-    }
+        }
     layoutLevel(d, -1);
 
-    std::function<void(int, QPointF)> place = [&](int level, QPointF origin) {
+    auto place = [&](auto &self, int level, QPointF origin) -> void {
         for (auto &node : d.nodes)
             if (node.host == level)
                 node.rect = QRectF(origin + node.local - QPointF(node.size.width(), node.size.height()) / 2, node.size);
@@ -1401,25 +1398,28 @@ void layout(Diagram &d) {
             }
             cluster.rect = QRectF(origin + cluster.local - QPointF(cluster.size.width(), cluster.size.height()) / 2,
                                   cluster.size);
-            place(c, cluster.rect.topLeft() + cluster.content);
+            self(self, c, cluster.rect.topLeft() + cluster.content);
         }
         for (auto &edge : d.edges)
             if (edge.level == level && edge.drawable)
                 for (auto &point : edge.middle)
                     point += origin;
     };
-    place(-1, {0, 0});
+    place(place, -1, {0, 0});
 
     auto rectOf = [&](End e) { return e.cluster ? d.clusters[e.index].rect : d.nodes[e.index].rect; };
     auto flowOf = [&](const Edge &edge) { return flow(edge.level < 0 ? d.dir : d.clusters[edge.level].dir); };
     // Links meet a box on the side facing their neighbor, spread across that side in the order
     // of their neighbors so several links neither pile onto one point nor cross at the box.
     struct Port {
+        End end;
         int edge;
         bool source;
         QPointF toward, side;
+        qreal along;
+        bool sameSide(const Port &other) const { return end == other.end && side == other.side; }
     };
-    std::map<std::tuple<bool, int, int, int>, QVector<Port>> sides;
+    QVector<Port> ports;
     for (int i = 0; i < d.edges.size(); ++i) {
         const auto &edge = d.edges[i];
         if (!edge.drawable || edge.loop)
@@ -1429,32 +1429,35 @@ void layout(Diagram &d) {
         const QPointF last = edge.middle.isEmpty() ? rectOf(edge.a).center() : edge.middle.last();
         for (const auto &[end, toward, source] : {std::make_tuple(edge.a, first, true), std::make_tuple(edge.b, last, false)}) {
             const QPointF side = f * (QPointF::dotProduct(toward - rectOf(end).center(), f) < 0 ? -1 : 1);
-            sides[{end.cluster, end.index, qRound(side.x()), qRound(side.y())}].append({i, source, toward, side});
+            ports.append({end, i, source, toward, side, QPointF::dotProduct(toward, QPointF(qAbs(side.y()), qAbs(side.x())))});
         }
     }
+    // Group ports by box and side, each group in order along that side.
+    std::stable_sort(ports.begin(), ports.end(), [](const Port &a, const Port &b) {
+        return std::tuple(a.end.cluster, a.end.index, a.side.x(), a.side.y(), a.along) <
+               std::tuple(b.end.cluster, b.end.index, b.side.x(), b.side.y(), b.along);
+    });
     QVector<QPointF> starts(d.edges.size()), ends(d.edges.size());
-    for (auto &[key, ports] : sides) {
-        const End end{std::get<0>(key), std::get<1>(key)};
+    for (int first = 0, count; first < ports.size(); first += count) {
+        for (count = 1; first + count < ports.size() && ports[first + count].sameSide(ports[first]); ++count) {}
+        const End end = ports[first].end;
         const QRectF r = rectOf(end);
         const Shape shape = end.cluster ? Shape::Rect : d.nodes[end.index].shape;
-        const QPointF side = ports.first().side, across(qAbs(side.y()), qAbs(side.x()));
-        std::stable_sort(ports.begin(), ports.end(), [&](const Port &a, const Port &b) {
-            return QPointF::dotProduct(a.toward, across) < QPointF::dotProduct(b.toward, across);
-        });
+        const QPointF side = ports[first].side, across(qAbs(side.y()), qAbs(side.x()));
         const bool pointed = shape == Shape::Circle || shape == Shape::DoubleCircle ||
                              shape == Shape::Diamond || shape == Shape::Hexagon;
         const qreal usable = (side.x() != 0 ? r.height() : r.width()) * (pointed ? 0.35 : 0.6);
-        const qreal spacing = ports.size() > 1 ? qMin(usable / (ports.size() - 1), 32.0) : 0;
+        const qreal spacing = count > 1 ? qMin(usable / (count - 1), 32.0) : 0;
         const QPainterPath body = outline(shape, r);
-        for (int k = 0; k < ports.size(); ++k) {
+        for (int k = 0; k < count; ++k) {
             // Walk out from the center line to wherever the shape's outline is on this side.
-            const QPointF from = r.center() + across * (k - (ports.size() - 1) / 2.0) * spacing;
+            const QPointF from = r.center() + across * (k - (count - 1) / 2.0) * spacing;
             qreal inside = 0, outside = r.width() + r.height();
             for (int step = 0; step < 24; ++step) {
                 const qreal middle = (inside + outside) / 2;
                 (body.contains(from + side * middle) ? inside : outside) = middle;
             }
-            (ports[k].source ? starts : ends)[ports[k].edge] = from + side * inside;
+            (ports[first + k].source ? starts : ends)[ports[first + k].edge] = from + side * inside;
         }
     }
     d.bounds = QRectF();
@@ -1624,10 +1627,11 @@ qreal paintMermaid(QPainter *p, const QRectF &area, const QString &source, const
         const auto &cluster = d.clusters[c];
         return cluster.style.fill.isValid() ? cluster.style.fill : mix(background, foreground, 0.05 + 0.03 * cluster.depth);
     };
-    QVector<int> clusters(d.clusters.size());
-    std::iota(clusters.begin(), clusters.end(), 0);
-    std::stable_sort(clusters.begin(), clusters.end(),
-                     [&](int a, int b) { return d.clusters[a].depth < d.clusters[b].depth; });
+    QVector<int> clusters; // outermost first, so inner boxes paint over their parents
+    for (int depth = 0; clusters.size() < d.clusters.size(); ++depth)
+        for (int c = 0; c < d.clusters.size(); ++c)
+            if (d.clusters[c].depth == depth)
+                clusters.append(c);
     for (int c : clusters) {
         const auto &cluster = d.clusters[c];
         const QColor fill = clusterFill(c);
