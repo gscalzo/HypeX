@@ -1209,11 +1209,19 @@ QSizeF layoutLevel(Diagram &d, int level) {
                                    point(last, y[bottom] + thickness[bottom] / 2 + rim(rim, g, false)))
                                 .normalized();
     }
+    // A link only needs to bend where a rank holds something to pass: skip its points in ranks
+    // of bare link points, so it sweeps through them instead of hooking at each one.
+    QVector<bool> crowded(ranks, false);
+    for (const auto &item : items)
+        if (!dummy(&item - items.data()) || item.label || item.border)
+            crowded[item.rank] = true;
     for (const auto &link : links) {
         auto &edge = d.edges[link.edge];
         edge.middle.clear();
         edge.labelAt = -1;
         for (int i : link.chain) {
+            if (!crowded[items[i].rank] && !items[i].label)
+                continue;
             if (items[i].label)
                 edge.labelAt = edge.middle.size();
             edge.middle.append(local(i));
@@ -1294,9 +1302,19 @@ QPainterPath spline(const QVector<QPointF> &points, QPointF f) {
     tangent[n - 1] = f * QPointF::dotProduct(points[n - 1] - points[n - 2], f) * 1.5;
     for (int i = 1; i + 1 < n; ++i)
         tangent[i] = (points[i + 1] - points[i - 1]) / 2;
+    // A handle never reaches past half its own segment, so a short hop next to a long run
+    // bends gently instead of overshooting into a hook.
+    auto handle = [](QPointF tangent, qreal segment) {
+        const qreal length = qSqrt(QPointF::dotProduct(tangent, tangent)) / 3;
+        return length > segment / 2 ? tangent * (segment / 2 / (length * 3)) : tangent / 3;
+    };
     QPainterPath path(points[0]);
-    for (int i = 0; i + 1 < n; ++i)
-        path.cubicTo(points[i] + tangent[i] / 3, points[i + 1] - tangent[i + 1] / 3, points[i + 1]);
+    for (int i = 0; i + 1 < n; ++i) {
+        const QPointF step = points[i + 1] - points[i];
+        const qreal segment = qSqrt(QPointF::dotProduct(step, step));
+        path.cubicTo(points[i] + handle(tangent[i], segment), points[i + 1] - handle(tangent[i + 1], segment),
+                     points[i + 1]);
+    }
     return path;
 }
 
