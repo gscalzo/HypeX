@@ -146,7 +146,7 @@ flowchart LR
 ```
 ````
 
-Hype draws flowcharts itself, with no browser or Node.js involved. It supports every direction (`TD`, `LR`, `BT`, `RL`), the node shapes, solid, dotted, thick, and invisible links with arrow, circle, and cross ends, link labels, nested subgraphs with their own `direction` (as in Mermaid, a subgraph follows the diagram’s direction when links reach inside it from outside), and `classDef`, `class`, and `style` colors. Other Mermaid diagram types, like sequence diagrams, show an error on the slide for now. Diagrams stay sharp in PDF.
+Hype draws flowcharts itself, with no browser or Node.js involved. It supports every direction (`TD`, `LR`, `BT`, `RL`), the node shapes, solid, dotted, thick, and invisible links with arrow, circle, and cross ends, link labels, nested subgraphs with their own `direction` (as in Mermaid, a subgraph follows the diagram’s direction when links reach inside it from outside), and `classDef`, `class`, and `style` colors. Other Mermaid diagram types, like sequence diagrams, show an error on the slide for now. Diagrams stay sharp in PDF. See [examples/diagrams.md](examples/diagrams.md) for more.
 
 ## Choose your look
 
