@@ -1,15 +1,23 @@
 name: CI
 
-# macOS proves the drafting build; Linux proves the macOS patches left upstream's
-# behaviour alone. Both run the round-trip golden test.
+# Linux proves the macOS patches left upstream's behaviour alone and runs the
+# round-trip golden test. macOS runners use ten times the free minutes, so the
+# macOS build runs only when asked: Actions > CI > Run workflow > macOS. Test it
+# locally with bin/build-macos and bin/test.
 on:
   push:
     branches: [master]
   pull_request:
   workflow_dispatch: # upstream-sync.yml dispatches this for its PRs
+    inputs:
+      macos:
+        description: Also build and test HypeX.app on macOS
+        type: boolean
+        default: false
 
 jobs:
   macos:
+    if: github.event_name == 'workflow_dispatch' && inputs.macos
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
