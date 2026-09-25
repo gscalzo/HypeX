@@ -471,6 +471,28 @@ static QString slideProperty(const QString &source, const QString &key) {
     QRegularExpression re("<!--\\s*hype:[\\s\\S]*?\\b" + key + "=\"([^\"]*)\"[\\s\\S]*?-->");
     return re.match(source).captured(1);
 }
+int talkDuration(const QString &source) {
+    const QString value = slideProperty(outsideCode(source), "duration").trimmed().toLower();
+    if (value.isEmpty())
+        return 0;
+    // 20 (minutes), 25:00 or 1:05:00, or 1h 30m, 45min, 90s.
+    static const QRegularExpression minutes("^\\d+$");
+    static const QRegularExpression clock("^(?:(\\d+):)?(\\d+):([0-5]\\d)$");
+    static const QRegularExpression units(
+        "^(?:(\\d+)\\s*h(?:ours?|rs?)?)?\\s*(?:(\\d+)\\s*m(?:in(?:ute)?s?)?)?\\s*"
+        "(?:(\\d+)\\s*s(?:ec(?:ond)?s?)?)?$");
+    qint64 seconds = -1;
+    if (minutes.match(value).hasMatch()) {
+        seconds = value.toLongLong() * 60;
+    } else if (const auto m = clock.match(value); m.hasMatch()) {
+        seconds = m.captured(1).toLongLong() * 3600 + m.captured(2).toLongLong() * 60 +
+                  m.captured(3).toLongLong();
+    } else if (const auto m = units.match(value); m.hasMatch()) {
+        seconds = m.captured(1).toLongLong() * 3600 + m.captured(2).toLongLong() * 60 +
+                  m.captured(3).toLongLong();
+    }
+    return seconds > 0 && seconds <= 24 * 3600 ? int(seconds) : -1;
+}
 static QString preserveLineBreaks(QString markdown) {
     markdown.replace("\r\n", "\n").replace('\r', '\n');
     const QStringList visible = outsideCode(markdown, false).split('\n');

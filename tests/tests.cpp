@@ -155,6 +155,30 @@ class HypeTests : public QObject {
                        "```html\n<!-- Shown as code, not a note -->\n```\n\n<!-- Second\nline -->");
         QCOMPARE(deck.speakerNotes(), QString("First note\n\nSecond\nline"));
     }
+    void talkDurationFromTheFirstSlide() {
+        auto duration = [](const QString &value) {
+            return talkDuration("<!-- hype: duration=\"" + value + "\" -->\n\n# Title\n");
+        };
+        QCOMPARE(duration("20"), 20 * 60);
+        QCOMPARE(duration("20m"), 20 * 60);
+        QCOMPARE(duration("45 min"), 45 * 60);
+        QCOMPARE(duration("1h 30m"), 90 * 60);
+        QCOMPARE(duration("1h"), 3600);
+        QCOMPARE(duration("90s"), 90);
+        QCOMPARE(duration("25:00"), 25 * 60);
+        QCOMPARE(duration("1:05:30"), 3600 + 5 * 60 + 30);
+        QCOMPARE(duration("soon"), -1);
+        QCOMPARE(duration("0"), -1);
+        QCOMPARE(duration("25:75"), -1);
+        QCOMPARE(talkDuration("# Title\n"), 0);
+        QCOMPARE(talkDuration("```html\n<!-- hype: duration=\"20m\" -->\n```\n"), 0);
+        Deck deck;
+        deck.editSource("<!-- hype: duration=\"20m\" -->\n\n# First\n\n---\n\n# Second\n");
+        QCOMPARE(deck.talkDuration(), 20 * 60);
+        QVERIFY(deck.speakerNotes().isEmpty());
+        deck.editSource("# First\n\n---\n\n<!-- hype: duration=\"20m\" -->\n\n# Second\n");
+        QCOMPARE(deck.talkDuration(), 0);
+    }
     void followsDesktopTheme() {
         QTemporaryDir files;
         const QString current = files.path() + "/current";
@@ -673,6 +697,43 @@ class HypeTests : public QObject {
         QVERIFY(!presenterWindow->isVisible());
         QTRY_VERIFY(window->visibility() != QWindow::FullScreen);
         QTRY_VERIFY(window->property("popupOpen").toBool());
+        window->setProperty("allowClose", true);
+        window->close();
+    }
+    void talkClockStartsWhenTheShowLeavesTheFirstSlide() {
+        if (!qEnvironmentVariableIsSet("HYPE_GUI_TESTS")) QSKIP("Set HYPE_GUI_TESTS=1");
+        Deck deck;
+        deck.editSource("<!-- hype: duration=\"20m\" -->\n# First\n---\n# Second\n---\n# Last\n");
+        QQuickStyle::setStyle("Basic");
+        qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");
+        qmlRegisterType<AppTheme>("Hype", 1, 0, "AppTheme");
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("deck", &deck);
+        engine.addImageProvider("slides", new Thumbnails(&deck));
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        auto clock = window->findChild<QObject *>("talkClock");
+        QVERIFY(clock);
+        deck.select(0);
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QCOMPARE(clock->property("text").toString(), QString("20:00"));
+        QCOMPARE(window->property("talkStart").toDouble(), 0.0);
+        deck.select(1);
+        const double start = window->property("talkStart").toDouble();
+        QVERIFY(start > 0);
+        window->setProperty("talkNow", start + 61 * 1000);
+        QCOMPARE(clock->property("text").toString(), QString("18:59"));
+        window->setProperty("talkNow", start + 21 * 60 * 1000);
+        QCOMPARE(clock->property("text").toString(), QString("+1:00"));
+        // Going back to the title slide keeps the clock running; a new show starts it over.
+        deck.select(0);
+        QCOMPARE(window->property("talkStart").toDouble(), start);
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QCOMPARE(window->property("talkStart").toDouble(), 0.0);
+        QCOMPARE(clock->property("text").toString(), QString("20:00"));
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
         window->setProperty("allowClose", true);
         window->close();
     }

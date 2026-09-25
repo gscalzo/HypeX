@@ -75,8 +75,33 @@ ApplicationWindow {
     property var presentationReturnScreen: null
     property int presentationReturnVisibility: Window.Windowed
     property rect presentationReturnGeometry: Qt.rect(0, 0, 0, 0)
+    // The talk clock starts when the show leaves the slide it opened on.
+    property int talkFrom: -1
+    property double talkStart: 0
+    property double talkNow: 0
+    readonly property int talkRemaining: deck.talkDuration -
+        (talkStart > 0 ? Math.floor((talkNow - talkStart) / 1000) : 0)
+    function clockText(seconds) {
+        const h = Math.floor(seconds / 3600), m = Math.floor(seconds / 60) % 60, s = seconds % 60
+        const pad = function(n) { return (n < 10 ? "0" : "") + n }
+        return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s)
+    }
+    Connections {
+        target: deck
+        function onChanged() {
+            if (win.presenting && win.talkStart === 0 && deck.selected > 0 && deck.selected !== win.talkFrom) {
+                win.talkStart = win.talkNow = Date.now()
+            }
+        }
+    }
+    Timer {
+        interval: 250; repeat: true; running: win.presenting && win.talkStart > 0
+        onTriggered: win.talkNow = Date.now()
+    }
     function togglePresent() {
         presenting = !presenting
+        talkFrom = deck.selected
+        talkStart = 0
         console.info("[HypeX] presenting: " + presenting)
         if (presenting) {
             presentationReturnScreen = win.screen
@@ -403,6 +428,14 @@ ApplicationWindow {
                 Label {
                     text: deck.title; color: win.ui.foreground; font.pixelSize: 22; font.bold: true
                     Layout.fillWidth: true; elide: Text.ElideRight
+                }
+                Label {
+                    objectName: "talkClock"
+                    visible: deck.talkDuration > 0
+                    text: (win.talkRemaining < 0 ? "+" : "") + win.clockText(Math.abs(win.talkRemaining))
+                    color: win.talkStart === 0 ? win.ui.muted : win.talkRemaining < 0 ? win.ui.error
+                        : win.talkRemaining <= 120 ? win.ui.accent : win.ui.foreground
+                    font.family: "JetBrains Mono"; font.pixelSize: 22; font.bold: true
                 }
                 Label {
                     text: "Slide " + (deck.selected + 1) + " of " + deck.count

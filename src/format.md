@@ -66,6 +66,8 @@ puts "Code is highlighted when you name the language"
 - Ordinary line breaks stay visible on the slide.
 - `<!-- comments -->` are hidden from the slide; use them for speaker notes
   (see Speaker notes below).
+- `<!-- hype: duration="20m" -->` on the first slide sets the talk's length;
+  Presenter View counts it down from the second slide. Also `1h 30m`, `25:00`.
 - A `---` inside a code fence does not split the slide.
 
 ## Images and video
