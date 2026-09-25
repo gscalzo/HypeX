@@ -1168,12 +1168,6 @@ void Deck::setMediaMode(const QString &mode) {
 void Deck::exportDialog(const QString &format) {
     if (m_exporting)
         return;
-#ifdef Q_OS_MACOS
-    if (format == "pptx") {
-        setStatus("PowerPoint export is not available on macOS.");
-        return;
-    }
-#endif
     QString error;
     const QString p = FileDialog::choose(
         true,
@@ -1432,7 +1426,8 @@ bool Deck::renderImages(const QString &directory, int width, bool convertAnimati
             return false;
         }
         auto media = parseMedia(slide(i), baseDir());
-        QJsonObject entry{{"image", name}, {"warning", warning}};
+        QJsonObject entry{
+            {"image", name}, {"warning", warning}, {"notes", ::speakerNotes(slide(i))}};
         if (media.video) {
             entry["video"] = media.path;
             if (convertAnimations) {
@@ -1502,11 +1497,6 @@ bool Deck::renderImages(const QString &directory, int width, bool convertAnimati
     return true;
 }
 bool Deck::exportPptx(const QString &path) {
-#ifdef Q_OS_MACOS // Drafting only: render PowerPoint on Omarchy.
-    Q_UNUSED(path);
-    setStatus("PowerPoint export is not available on macOS.");
-    return false;
-#endif
     QTemporaryDir temp;
     if (!renderImages(temp.path(), 3840, true))
         return false;

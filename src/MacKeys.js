@@ -12,7 +12,6 @@ var present = mac ? ["F5", "Ctrl+Alt+P"] : ["F5", "Ctrl+Space"]
 var headline = mac ? "Ctrl+1" : "Ctrl+H"
 var overview = mac ? "Ctrl+0" : "Ctrl+M"
 var deleteSlides = mac ? ["Delete", "Backspace"] : ["Delete"]
-var pptx = !mac
 
 // Shortcut text in tooltips, menus and the overlay.
 function label(text) {
@@ -28,9 +27,4 @@ function label(text) {
         .replace(/Ctrl\+/g, "⌘")
         .replace(/Shift\+/g, "⇧")
         .replace(/⌘Enter/g, "⌘↩")
-}
-
-// Overlay rows that apply on this platform.
-function available(row) {
-    return pptx || row[1].indexOf("PowerPoint") < 0
 }

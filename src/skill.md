@@ -29,7 +29,9 @@ diagrams, for this version of Hype.
    split the slide.
 4. Look: `hype render <file> --slide N -o /tmp/slide.png`, then view the PNG.
    Do this for slides whose layout matters: images, code, long text.
-5. Export when asked: `hype export <file> talk.pdf` or `talk.pptx`.
+5. Export when asked: `hype export <file> talk.pdf` or `talk.pptx`. A `.pptx`
+   carries the speaker notes, formatted; its slides are pictures, so changes
+   go in the Markdown, followed by a new export.
 
 ## Working with the person
 

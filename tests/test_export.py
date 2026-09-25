@@ -15,10 +15,8 @@ import zlib
 APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/MacOS/HypeX' if sys.platform == 'darwin' else 'build/hype')
 
 
-def setUpModule():
-    if sys.platform == 'darwin':
-        raise unittest.SkipTest('PowerPoint export is not available on macOS')
-
+# LibreOffice's command is soffice on macOS.
+OFFICE = shutil.which('libreoffice') or shutil.which('soffice')
 
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
@@ -44,8 +42,12 @@ class ExportTests(unittest.TestCase):
         image(self.root / 'images/photo.png')
         tools = self.root / 'tools'
         tools.mkdir()
-        self.app = tools / 'hype'
-        shutil.copy2(APP, self.app)
+        if sys.platform == 'darwin':
+            # HypeX.app finds its Qt frameworks and source-highlight inside the bundle.
+            self.app = APP
+        else:
+            self.app = tools / 'hype'
+            shutil.copy2(APP, self.app)
         for tool in ['ffmpeg', 'ffprobe', 'source-highlight']:
             (tools / tool).symlink_to(shutil.which(tool))
         # The exported application cannot find Python, pip, or an external ZIP tool.
@@ -93,6 +95,170 @@ class ExportTests(unittest.TestCase):
             core = ET.fromstring(archive.read('docProps/core.xml'))
             self.assertEqual(core.find('{http://purl.org/dc/elements/1.1/}title').text, 'A & B <C>')
             for name in archive.namelist():
+                if name.endswith(('.xml', '.rels')):
+                    ET.fromstring(archive.read(name))
+
+    def notes(self, slide=1):
+        """Each notes paragraph as (list marker, level, [(text, style)])."""
+        with zipfile.ZipFile(self.output) as archive:
+            notes = ET.fromstring(archive.read(f'ppt/notesSlides/notesSlide{slide}.xml'))
+            rels = ET.fromstring(archive.read(f'ppt/notesSlides/_rels/notesSlide{slide}.xml.rels'))
+        links = {rel.get('Id'): rel.get('Target') for rel in rels}
+        body = next(sp for sp in notes.iter('{%s}sp' % NS['p'])
+                    if sp.find('.//p:ph', NS).get('type') == 'body')
+        paragraphs = []
+        for paragraph in body.findall('p:txBody/a:p', NS):
+            marker, level = None, None
+            properties = paragraph.find('a:pPr', NS)
+            if properties is not None:
+                level = int(properties.get('lvl'))
+                bullet, number = properties.find('a:buChar', NS), properties.find('a:buAutoNum', NS)
+                marker = bullet.get('char') if bullet is not None else \
+                    (number.get('type'), int(number.get('startAt', '1')))
+            runs = []
+            for child in paragraph:
+                if child.tag == '{%s}br' % NS['a']:
+                    runs.append(('\n', ''))
+                elif child.tag == '{%s}r' % NS['a']:
+                    run = child.find('a:rPr', NS)
+                    style = [name for name, attribute in [('bold', 'b'), ('italic', 'i'), ('underline', 'u'),
+                                                          ('strike', 'strike')] if run.get(attribute)]
+                    if run.get('sz'):
+                        style.append('size' + run.get('sz'))
+                    if run.find('a:latin', NS) is not None:
+                        style.append(run.find('a:latin', NS).get('typeface'))
+                    link = run.find('a:hlinkClick', NS)
+                    if link is not None:
+                        style.append(links[link.get('{%s}id' % NS['r'])])
+                    runs.append((child.find('a:t', NS).text or '', ' '.join(style)))
+            paragraphs.append((marker, level, runs))
+        return paragraphs
+
+    def test_speaker_notes(self):
+        self.export('<!-- Open with a story & a pause -->\n\n# Hello\n\n<!-- Then:\n- ask a question -->\n'
+                    '\n---\n\n# Quiet\n\n```html\n<!-- code, not a note -->\n```\n')
+        with zipfile.ZipFile(self.output) as archive:
+            names = archive.namelist()
+            self.assertIn('ppt/notesMasters/notesMaster1.xml', names)
+            self.assertIn('ppt/notesSlides/notesSlide1.xml', names)
+            self.assertNotIn('ppt/notesSlides/notesSlide2.xml', names)
+            rels = ET.fromstring(archive.read('ppt/slides/_rels/slide1.xml.rels'))
+            self.assertIn('../notesSlides/notesSlide1.xml', [rel.get('Target') for rel in rels])
+            rels = ET.fromstring(archive.read('ppt/notesSlides/_rels/notesSlide1.xml.rels'))
+            self.assertEqual({rel.get('Target') for rel in rels},
+                             {'../notesMasters/notesMaster1.xml', '../slides/slide1.xml'})
+            presentation = ET.fromstring(archive.read('ppt/presentation.xml'))
+            self.assertIsNotNone(presentation.find('p:notesMasterIdLst/p:notesMasterId', NS))
+            types = archive.read('[Content_Types].xml').decode()
+            self.assertIn('/ppt/notesSlides/notesSlide1.xml', types)
+            self.assertIn('/ppt/notesMasters/notesMaster1.xml', types)
+        self.assertEqual(self.notes(), [(None, None, [('Open with a story & a pause', '')]),
+                                        (None, None, []),
+                                        (None, None, [('Then:', '')]),
+                                        ('•', 0, [('ask a question', '')])])
+        self.export('# No notes\n')
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertFalse([name for name in archive.namelist() if 'notes' in name])
+
+    def test_speaker_notes_on_a_later_slide_only(self):
+        self.export('# One\n\n---\n\n# Two\n\n<!-- Only here -->\n\n---\n\n# Three\n')
+        with zipfile.ZipFile(self.output) as archive:
+            names = archive.namelist()
+            self.assertEqual([name for name in names if name.startswith('ppt/notesSlides/notesSlide')],
+                             ['ppt/notesSlides/notesSlide2.xml'])
+            for slide in (1, 3):
+                rels = ET.fromstring(archive.read(f'ppt/slides/_rels/slide{slide}.xml.rels'))
+                self.assertFalse([rel for rel in rels if 'notes' in rel.get('Target')])
+        self.assertEqual(self.notes(2), [(None, None, [('Only here', '')])])
+
+    def test_speaker_notes_markdown_and_html_formatting(self):
+        self.export('<!-- A **bold** and <b>bold</b>, *italic* and <em>italic</em>\n'
+                    '__under__ _line_ ***both*** <u>under</u> ~~gone~~ <del>gone</del>\n'
+                    'Run `hype export` or <code>make</code>\n'
+                    '<b>spans\nlines</b> but **not\nthis** -->\n\n# Hello\n')
+        self.assertEqual(self.notes(), [
+            (None, None, [('A ', ''), ('bold', 'bold'), (' and ', ''), ('bold', 'bold'), (', ', ''),
+                          ('italic', 'italic'), (' and ', ''), ('italic', 'italic')]),
+            (None, None, [('under', 'underline'), (' ', ''), ('line', 'underline'), (' ', ''),
+                          ('both', 'bold italic'), (' ', ''), ('under', 'underline'), (' ', ''),
+                          ('gone', 'strike'), (' ', ''), ('gone', 'strike')]),
+            (None, None, [('Run ', ''), ('hype export', 'Courier New'), (' or ', ''),
+                          ('make', 'Courier New')]),
+            (None, None, [('spans', 'bold')]),
+            (None, None, [('lines', 'bold'), (' but **not', '')]),
+            (None, None, [('this**', '')])])
+
+    def test_speaker_notes_lists_and_headings(self):
+        self.export('<!--\n# Opening\n- point\n  - detail with **weight**\n    - deeper\n* star\n+ plus\n'
+                    '3. third\n4. fourth\n\n1) paren\n2) paren again\nPlain again\n## Close ##\n-->\n\n# Hi\n')
+        self.assertEqual(self.notes(), [
+            (None, None, [('Opening', 'bold size1400')]),
+            ('•', 0, [('point', '')]),
+            ('•', 1, [('detail with ', ''), ('weight', 'bold')]),
+            ('•', 2, [('deeper', '')]),
+            ('•', 0, [('star', '')]),
+            ('•', 0, [('plus', '')]),
+            (('arabicPeriod', 3), 0, [('third', '')]),
+            (('arabicPeriod', 3), 0, [('fourth', '')]),
+            (None, None, []),
+            (('arabicParenR', 1), 0, [('paren', '')]),
+            (('arabicParenR', 1), 0, [('paren again', '')]),
+            (None, None, [('Plain again', '')]),
+            (None, None, [('Close', 'bold size1400')])])
+
+    def test_speaker_notes_keep_what_is_not_formatting(self):
+        self.export('<!-- 5 * 3 = 15 and 2 * 4, snake_case_name, \\*escaped\\*, **unclosed\n'
+                    '<div>tag</div> <script>x</script> &lt;b&gt; &amp; &#x2192; &bogus; A&B\n'
+                    'line<br>break, #hashtag, -dash, 1.5 -->\n\n# Hi\n')
+        self.assertEqual(self.notes(), [
+            (None, None, [('5 * 3 = 15 and 2 * 4, snake_case_name, *escaped*, **unclosed', '')]),
+            (None, None, [('<div>tag</div> <script>x</script> <b> & → &bogus; A&B', '')]),
+            (None, None, [('line', ''), ('\n', ''), ('break, #hashtag, -dash, 1.5', '')])])
+
+    def test_speaker_notes_links(self):
+        self.export('<!-- See [the docs](https://example.com/a?b=1&c=2) and [**mail**](mailto:me@example.com)\n'
+                    'Again [docs](https://example.com/a?b=1&c=2), not [this](javascript:alert(1)) '
+                    'or [that](file:///etc/passwd) -->\n\n# Hi\n')
+        docs, mail = 'https://example.com/a?b=1&c=2', 'mailto:me@example.com'
+        self.assertEqual(self.notes(), [
+            (None, None, [('See ', ''), ('the docs', docs), (' and ', ''), ('mail', 'bold ' + mail)]),
+            (None, None, [('Again ', ''), ('docs', docs), (', not this or that', '')])])
+        with zipfile.ZipFile(self.output) as archive:
+            rels = ET.fromstring(archive.read('ppt/notesSlides/_rels/notesSlide1.xml.rels'))
+        external = [(rel.get('Target'), rel.get('TargetMode')) for rel in rels if rel.get('Type').endswith('/hyperlink')]
+        self.assertEqual(external, [(docs, 'External'), (mail, 'External')])
+
+    def test_speaker_notes_code_block(self):
+        self.export('<!-- Show this:\n```\n**not bold** <b>x</b>\n  indented\n```\nDone **here** -->\n\n# Hi\n')
+        self.assertEqual(self.notes(), [
+            (None, None, [('Show this:', '')]),
+            (None, None, [('**not bold** <b>x</b>', 'Courier New')]),
+            (None, None, [('  indented', 'Courier New')]),
+            (None, None, [('Done ', ''), ('here', 'bold')])])
+
+    def test_package_parts_and_relationships_are_consistent(self):
+        self.movie()
+        self.export('<!-- Intro [link](https://example.com) -->\n\n# One\n\n---\n\n![loop](demo.mp4)\n\n'
+                    '---\n\n# Three\n\n<!-- - last -->\n')
+        with zipfile.ZipFile(self.output) as archive:
+            names = set(archive.namelist())
+            types = ET.fromstring(archive.read('[Content_Types].xml'))
+            ct = '{http://schemas.openxmlformats.org/package/2006/content-types}'
+            defaults = {d.get('Extension').lower() for d in types.iter(ct + 'Default')}
+            overrides = {o.get('PartName') for o in types.iter(ct + 'Override')}
+            for name in names - {'[Content_Types].xml'}:
+                self.assertTrue('/' + name in overrides or name.rsplit('.', 1)[-1].lower() in defaults, name)
+            for override in overrides:
+                self.assertIn(override[1:], names)
+            for rels in [name for name in names if name.endswith('.rels')]:
+                base = rels.replace('_rels/', '').removesuffix('.rels')
+                folder = os.path.dirname(base)
+                for rel in ET.fromstring(archive.read(rels)):
+                    if rel.get('TargetMode') == 'External':
+                        continue
+                    target = os.path.normpath(os.path.join(folder, rel.get('Target'))).lstrip('/')
+                    self.assertIn(target, names, f'{rels} -> {rel.get("Target")}')
+            for name in names:
                 if name.endswith(('.xml', '.rels')):
                     ET.fromstring(archive.read(name))
 
@@ -242,24 +408,28 @@ class ExportTests(unittest.TestCase):
         self.export('# Original\n')
         original = self.output.read_bytes()
         self.animation('webp')
-        (self.root / 'tools/ffmpeg').unlink()
+        # A failing ffmpeg, first on the PATH: HypeX.app also searches Homebrew for a missing one.
+        ffmpeg = self.root / 'tools/ffmpeg'
+        ffmpeg.unlink()
+        ffmpeg.write_text('#!/bin/sh\n/bin/cat >/dev/null\necho "ffmpeg: simulated failure" >&2\nexit 1\n')
+        ffmpeg.chmod(0o755)
         result = self.export('![](demo.webp)\n', success=False)
         self.assertIn('Slide 1', result.stderr)
         self.assertIn('ffmpeg', result.stderr)
         self.assertEqual(self.output.read_bytes(), original)
         self.assertEqual(list((self.root / 'videos').iterdir()), [])
 
-    @unittest.skipUnless(os.environ.get('HYPE_OFFICE_TESTS') and shutil.which('libreoffice'),
+    @unittest.skipUnless(os.environ.get('HYPE_OFFICE_TESTS') and OFFICE,
                          'Set HYPE_OFFICE_TESTS=1 to verify with LibreOffice')
     def test_libreoffice_opens_export(self):
         self.movie()
         self.animation('webp')
-        self.export('# Hello\n\n---\n\n![loop muted](demo.mp4)\n\n---\n\n'
+        self.export('<!-- **Speaker** notes:\n- [link](https://example.com) -->\n\n# Hello\n\n---\n\n![loop muted](demo.mp4)\n\n---\n\n'
                     '![span](demo.mp4)\n\n# Overlaid headline\n\n---\n\n![](demo.webp)\n')
         output = self.root / 'pdf'
         output.mkdir()
         profile = (self.root / 'office-profile').as_uri()
-        result = subprocess.run(['libreoffice', f'-env:UserInstallation={profile}', '--headless',
+        result = subprocess.run([OFFICE, f'-env:UserInstallation={profile}', '--headless',
                                  '--convert-to', 'pdf', '--outdir', str(output), str(self.output)],
                                 env=dict(os.environ, SAL_USE_VCLPLUGIN='svp'),
                                 capture_output=True, text=True, timeout=60)

@@ -9,7 +9,7 @@ The presentation is the same Markdown file on both. HypeX is Hype's own code (pa
 ## What's different from Hype
 
 - **Built for macOS.** A native `HypeX.app` with macOS file dialogs, Finder **Open With**, and ⌘ shortcuts.
-- **Export to PDF only.** PowerPoint export is left to Hype on Omarchy.
+- **Export to PDF and PowerPoint.** The same exporters as Hype on Omarchy. PowerPoint files also get your presenter notes, with their formatting.
 - **Omarchy's themes built in.** The 22 stock Omarchy themes ship inside the app, so a deck previews in the theme it will be presented with.
 - **Font check.** `hype check` warns when a deck uses a font that Omarchy doesn't install by default, because text is sized to fit and another font changes the layout.
 - **Two features ahead of Hype.** HypeX includes presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)), both still open upstream. Until #9 is merged, a deck with a `mermaid` block needs a Hype build with that change to show the diagram on Omarchy; stock Hype shows it as a code block.
@@ -109,6 +109,8 @@ Select text and click **Note** (or press **⌘/**) to turn it into a note. A sli
 
 To see them, connect an external display and press **⌥⌘P**: the slides fill the external display and Presenter View opens on the Mac's screen with the current slide, the next one, a slide counter, and your notes. With a single display, presenting shows only the slides.
 
+Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
+
 ## Add images and video
 
 Paste an image with **⌘V**, drag a file onto the preview, or use **Media**. Media lives beside the Markdown file and is referenced by filename:
@@ -163,6 +165,33 @@ Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use t
 
 **⌘E** exports a PDF. Text stays vector and images keep their full resolution. Export runs in the background while you keep editing.
 
+### Export to PowerPoint
+
+**⇧⌘E** (or **File → Export as PowerPoint…**) exports a `.pptx` with the same exporter Hype uses on Omarchy. It opens in Microsoft PowerPoint and LibreOffice.
+
+- **Slides look exactly as in HypeX.** Each slide is a 4K picture in your theme's colors and font, so nothing reflows on a machine without your fonts. The trade-off is that slide text can't be edited in PowerPoint; edit the Markdown and export again.
+- **Videos play.** A video is embedded with its `autoplay`, `loop` and `muted` settings. Videos that aren't H.264/AAC MP4 are converted with ffmpeg during export, and a video used on several slides is stored once. A `span` video must be 16:9; use `fit` for any other shape.
+- **Animations play.** Animated GIFs and WebPs become movies that repeat as many times as the original.
+- **Notes come along.** Each slide's [notes](#add-presenter-notes) become its notes page, shown in PowerPoint's Notes pane and Presenter View. Slides without notes get no notes page.
+
+Notes keep their formatting in PowerPoint, and each line of a note stays its own line:
+
+| In the note | In PowerPoint |
+| --- | --- |
+| `**bold**` or `<b>bold</b>` | **bold** |
+| `*italic*` or `<i>italic</i>` | *italic* |
+| `_underline_` or `<u>underline</u>` | underlined, as on slides |
+| `~~struck~~` or `<s>struck</s>` | ~~struck~~ |
+| `` `code` `` or `<code>code</code>` | Courier New |
+| `[docs](https://example.com)` | a clickable link (`https`, `http` and `mailto` only) |
+| `- item`, `1. item`, indented for nesting | bulleted and numbered lists |
+| `# Heading` | a bold, slightly larger line |
+| `<br>` | a line break |
+
+Anything else stays as written, so `5 * 3` or `snake_case` is safe. A fenced code block inside a note stays verbatim, in Courier New. Presenter View in HypeX shows notes as you wrote them, without formatting.
+
+From the command line, `hype export talk/presentation.md talk.pptx` does the same.
+
 ## Use HypeX from the command line
 
 The `hype` command needs no window, so scripts and coding agents can build, check, and export presentations:
@@ -172,7 +201,7 @@ hype new talk/presentation.md --title "My talk" --theme tokyo-night
 hype check talk/presentation.md                   # every problem, with its slide and line
 hype slides talk/presentation.md                  # an outline of the slides
 hype render talk/presentation.md --slide 3 -o slide.png
-hype export talk/presentation.md talk.pdf
+hype export talk/presentation.md talk.pdf         # or talk.pptx
 hype themes
 ```
 
@@ -187,6 +216,7 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | ⌘N / ⌘O | New presentation / open file |
 | ⌘S / ⇧⌘S | Save / save as |
 | ⌘E | Export as PDF |
+| ⇧⌘E | Export as PowerPoint |
 | ⌥⌘P or F5 | Present |
 | Esc | Stop presenting |
 | Space | Play or pause video while presenting |
@@ -222,7 +252,7 @@ bin/sync-themes                 # refresh the bundled Omarchy themes
 
 When something misbehaves, `~/Library/Logs/HypeX/hypex.log` (also in Console.app) records the displays, window placement, slide changes and navigation keys of the last session; it never records what you type.
 
-The macOS changes are small and sit behind `Q_OS_MACOS` and `macx {}`, so the same code still builds Hype on Linux. CI builds and tests both. A weekly workflow merges new Hype releases into a pull request, or opens an issue when they conflict. HypeX bundles md4c 0.5.3, because Homebrew's Qt was built against it and md4c 0.6 makes Qt drop `_underline_`.
+The macOS changes are small and sit behind `Q_OS_MACOS` and `macx {}`, so the same code still builds Hype on Linux. CI builds and tests on Linux for every push and pull request; the macOS build runs in CI only when started by hand (**Run workflow** with **macOS** ticked), to save Actions minutes, so run `bin/build-macos` and `bin/test` locally before merging Mac changes. A weekly workflow merges new Hype releases into a pull request, or opens an issue when they conflict. HypeX bundles md4c 0.5.3, because Homebrew's Qt was built against it and md4c 0.6 makes Qt drop `_underline_`.
 
 ## Credits
 
