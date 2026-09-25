@@ -13,9 +13,12 @@ ApplicationWindow {
         console.info("[HypeX] slides window visibility: " + visibility + " on '" + (screen ? screen.name : "?") + "' " + x + "," + y + " " + width + "x" + height)
         if (restoringEditor && visibility === Window.Windowed) {
             restoringEditor = false
-            Qt.callLater(restoreEditor)
+            // macOS reports the window as windowed when it starts leaving full screen;
+            // moving it before the animation ends strands it in the closing Space.
+            editorReturn.start()
         }
     }
+    Timer { id: editorReturn; interval: 800; onTriggered: restoreEditor() }
     onScreenChanged: console.info("[HypeX] slides window screen: '" + (screen ? screen.name : "?") + "'")
     width: 1400; height: 900; minimumWidth: 900; minimumHeight: 600
     visible: true
@@ -113,6 +116,7 @@ ApplicationWindow {
     }
     property bool restoringEditor: false
     function restoreEditor() {
+        console.info("[HypeX] restoring the editor on '" + (presentationReturnScreen ? presentationReturnScreen.name : "?") + "'")
         if (presentationReturnScreen) win.screen = presentationReturnScreen
         if (presentationReturnGeometry.width > 0) {
             win.x = presentationReturnGeometry.x
@@ -121,7 +125,9 @@ ApplicationWindow {
             win.height = presentationReturnGeometry.height
         }
         if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
-        else win.showNormal()
+        // Asking an already windowed window again, while macOS finishes leaving
+        // full screen, toggles it back into full screen.
+        else if (win.visibility !== Window.Windowed) win.showNormal()
         Qt.callLater(function() {
             win.requestActivate()
             stage.forceActiveFocus()

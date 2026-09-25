@@ -134,6 +134,7 @@ void startMacLog(Deck *deck) {
         qInfo("[HypeX] focus window: '%s'", window ? qPrintable(window->title()) : "none");
     });
     app->installEventFilter(new KeyLog(deck));
+    QObject::connect(app, &QCoreApplication::aboutToQuit, deck, [] { qInfo("[HypeX] quitting"); });
     auto last = std::make_shared<int>(deck->selected());
     QObject::connect(deck, &Deck::changed, deck, [deck, last] {
         if (deck->selected() != *last)
