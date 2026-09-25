@@ -111,6 +111,18 @@ To see them, connect an external display and press **⌥⌘P**: the slides fill 
 
 Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
 
+### Time your talk
+
+Give the talk a length on its first slide, and Presenter View counts it down in large digits in its lower-right corner, under the next slide:
+
+```markdown
+<!-- hype: duration="20m" -->
+
+# My talk
+```
+
+The clock waits on your title slide and starts when you move to the next one. It turns to the accent colour for the last two minutes and to red once you run over, counting the extra time as `+1:05`. Write the length as `20m`, `45 min`, `1h 30m`, `90s`, `25:00`, or a plain number of minutes. `hype check` warns about a length it can't read, or one on any slide but the first. Hype on Omarchy ignores the comment.
+
 ## Add images and video
 
 Paste an image with **⌘V**, drag a file onto the preview, or use **Media**. Media lives beside the Markdown file and is referenced by filename:
