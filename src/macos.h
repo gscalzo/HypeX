@@ -12,3 +12,6 @@ void prepareMacEnvironment();
 void openFinderFiles(Deck *deck);
 // Fonts a stock Omarchy install provides, so a deck drafted here renders the same there.
 bool isOmarchyFont(const QString &family);
+// Diagnostics for the editor: Qt messages, key presses, slide changes and
+// displays go to ~/Library/Logs/HypeX/hypex.log, replaced at each launch.
+void startMacLog(Deck *deck);

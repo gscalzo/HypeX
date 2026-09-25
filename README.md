@@ -159,7 +159,7 @@ Stick to fonts Omarchy installs by default (JetBrains Mono, Noto, iA Writer), or
 
 ## Present and export
 
-Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).
+Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. Presentation remotes work too: they send Page Down and Page Up, which move one slide at a time while presenting. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).
 
 **⌘E** exports a PDF. Text stays vector and images keep their full resolution. Export runs in the background while you keep editing.
 
@@ -198,7 +198,7 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | Tab / ⇧Tab | Switch between slides and editor |
 | Arrow keys | Previous / next slide; up and down move by a row in Overview |
 | Return | Open the selected slide from Overview |
-| Page Up / Page Down | Jump five slides, or five rows in Overview |
+| Page Up / Page Down | Jump five slides, or five rows in Overview; one slide while presenting |
 | Home / End | First / last slide |
 | ⌘↑ or ⌘← | Move selected slides earlier |
 | ⌘↓ or ⌘→ | Move selected slides later |

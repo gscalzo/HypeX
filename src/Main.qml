@@ -9,6 +9,8 @@ import "MacKeys.js" as MacKeys
 
 ApplicationWindow {
     id: win
+    onVisibilityChanged: function(visibility) { console.info("[HypeX] slides window visibility: " + visibility + " on '" + (screen ? screen.name : "?") + "' " + x + "," + y + " " + width + "x" + height) }
+    onScreenChanged: console.info("[HypeX] slides window screen: '" + (screen ? screen.name : "?") + "'")
     width: 1400; height: 900; minimumWidth: 900; minimumHeight: 600
     visible: true
     title: deck.title + (deck.dirty ? " •" : "") + " — " + MacKeys.appName
@@ -66,16 +68,24 @@ ApplicationWindow {
     property rect presentationReturnGeometry: Qt.rect(0, 0, 0, 0)
     function togglePresent() {
         presenting = !presenting
+        console.info("[HypeX] presenting: " + presenting)
         if (presenting) {
             presentationReturnScreen = win.screen
             presentationReturnVisibility = win.visibility
             presentationReturnGeometry = Qt.rect(win.x, win.y, win.width, win.height)
             const screens = presentationScreens(win.screen, Qt.application.screens)
-            win.screen = screens.audience
+            console.info("[HypeX] present: editor on '" + (win.screen ? win.screen.name : "?") + "', " +
+                         Qt.application.screens.length + " displays, built-in: " + isBuiltInScreen(win.screen) +
+                         "; slides -> '" + (screens.audience ? screens.audience.name : "none") +
+                         "', notes -> '" + (screens.notes ? screens.notes.name : "none") + "'")
+            moveOnto(win, screens.audience)
             win.showFullScreen()
             if (screens.notes) {
-                presenterWindow.screen = screens.notes
-                presenterWindow.showFullScreen()
+                moveOnto(presenterWindow, screens.notes)
+                // On macOS a second native full screen would open its own Space and can
+                // race the first; a maximized window stays on the laptop's desktop.
+                if (MacKeys.mac) presenterWindow.showMaximized()
+                else presenterWindow.showFullScreen()
                 Qt.callLater(function() { presenterWindow.requestActivate() })
             } else stage.forceActiveFocus()
         } else {
@@ -98,6 +108,14 @@ ApplicationWindow {
                 win.requestActivate()
                 stage.forceActiveFocus()
             })
+        }
+    }
+    function moveOnto(window, screen) {
+        window.screen = screen
+        // macOS picks a window's display from where it is, not from its screen property.
+        if (MacKeys.mac && screen) {
+            window.x = screen.virtualX + Math.max(0, (screen.width - window.width) / 2)
+            window.y = screen.virtualY + Math.max(0, (screen.height - window.height) / 2)
         }
     }
     function isBuiltInScreen(screen) {
@@ -339,6 +357,9 @@ ApplicationWindow {
     }
     ApplicationWindow {
         id: presenterWindow; objectName: "presenterWindow"
+        onVisibleChanged: console.info("[HypeX] presenter window visible: " + visible + " on '" + (screen ? screen.name : "?") + "'")
+        onVisibilityChanged: function(visibility) { console.info("[HypeX] presenter window visibility: " + visibility + " on '" + (screen ? screen.name : "?") + "' " + x + "," + y + " " + width + "x" + height) }
+        onScreenChanged: console.info("[HypeX] presenter window screen: '" + (screen ? screen.name : "?") + "'")
         visible: false; minimumWidth: 800; minimumHeight: 520
         title: deck.title + " — Presenter View"
         color: win.ui.background
@@ -612,8 +633,8 @@ ApplicationWindow {
     Shortcut { sequence: "Up"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? -1 : -win.rowStep)) }
     Shortcut { sequence: "Ctrl+Up"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(-win.rowStep) }
     Shortcut { sequence: "Shift+Up"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + -win.rowStep); if (win.markdown) win.alignSource(false) } }
-    Shortcut { sequence: "PgDown"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 5 * win.rowStep) }
-    Shortcut { sequence: "PgUp"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected - 5 * win.rowStep) }
+    Shortcut { sequence: "PgDown"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + (win.presenting ? 1 : 5 * win.rowStep)) }
+    Shortcut { sequence: "PgUp"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected - (win.presenting ? 1 : 5 * win.rowStep)) }
     Shortcut { sequence: "Home"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(0) }
     Shortcut { sequence: "End"; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!win.markdown && !slideEditor.activeFocus)); onActivated: deck.select(deck.count - 1) }
     Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; enabled: !win.popupOpen && !deck.compressingImage && win.presenting && (deck.media.video || animation.active); autoRepeat: false; onActivated: { if (animation.item) animation.item.paused = !animation.item.paused; else win.toggleVideo() } }
@@ -984,7 +1005,7 @@ ApplicationWindow {
                 ["Tab", "Switch between slides and editor"], ["Enter", "Open slide from Overview"],
                 ["? / F1", "Show these shortcuts"] ] },
             { title: "Slides", keys: [
-                ["Arrows", "Previous or next slide, by row in Overview"], ["Page Up / Page Down", "Jump five slides, or five rows in Overview"],
+                ["Arrows", "Previous or next slide, by row in Overview"], ["Page Up / Page Down", "Jump five slides, or five rows in Overview; one slide while presenting"],
                 ["Home / End", "First or last slide"], ["Shift+Arrows", "Extend the selection"],
                 ["Ctrl+Arrows", "Move selected slides"], ["Ctrl+Enter", "Add a slide"],
                 ["Ctrl+D", "Duplicate"], ["Delete", "Delete"] ] },

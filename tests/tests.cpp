@@ -2233,6 +2233,15 @@ class HypeTests : public QObject {
         QVERIFY(stage->isVisible());
         QVERIFY2(!window->findChild<QQuickWindow *>("presenterWindow")->isVisible(),
                  "Presenter View opened on the only screen, covering the slides");
+        // Presentation remotes send Page Down and Page Up: one slide at a time.
+        {
+            const int before = d.selected();
+            QTest::keyClick(window, Qt::Key_PageDown);
+            QCOMPARE(d.selected(), qMin(before + 1, d.count() - 1));
+            QTest::keyClick(window, Qt::Key_PageUp);
+            QCOMPARE(d.selected(), qMin(before + 1, d.count() - 1) - 1);
+            d.select(before);
+        }
         QTest::keyClick(window, presentKey.key(), presentKey.keyboardModifiers());
         QVERIFY(!window->property("presenting").toBool());
         QVERIFY(editor->isVisible());

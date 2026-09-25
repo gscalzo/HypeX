@@ -150,6 +150,7 @@ int main(int argc, char **argv) {
     }
     deck.enableAutosave();
 #ifdef Q_OS_MACOS
+    startMacLog(&deck);
     openFinderFiles(&deck);
 #endif
     adoptDesktopFont();
