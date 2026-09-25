@@ -353,9 +353,10 @@ QByteArray themeXml() {
 
 // Speaker notes: a notes master that places the slide above the notes, and one
 // notes page per slide that has them, as PowerPoint's Notes pane shows them.
-// Each line of a note is a paragraph, as in Presenter View. Markdown and a few
-// HTML tags format it: **bold**, *italic*, `code`, ~~struck~~, [links](https://…),
-// <b>, <i>, <u>, <s>, <code>, <br>, lists and # headings. Anything else stays text.
+// Each line of a note is a paragraph, as in Presenter View. Hype's Markdown and a
+// few HTML tags format it: **bold**, *italic*, _underline_, `code`, ~~struck~~,
+// [links](https://…), <b>, <i>, <u>, <s>, <code>, <br>, lists and # headings.
+// Anything else stays text.
 struct NoteRun {
     QString text, link;
     bool bold = false, italic = false, underline = false, strike = false, code = false;
@@ -426,6 +427,8 @@ void inlineRuns(const QString &text, NoteStyle &style, QList<NoteRun> &runs) {
         QList<int *> result;
         if (delimiter.startsWith('~'))
             return QList<int *>{&style.strike};
+        if (delimiter.startsWith('_')) // Hype's dialect: _underscores_ underline, as on slides
+            return QList<int *>{&style.underline};
         if (delimiter.size() != 2)
             result.append(&style.italic);
         if (delimiter.size() != 1)

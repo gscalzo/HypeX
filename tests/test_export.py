@@ -173,13 +173,13 @@ class ExportTests(unittest.TestCase):
 
     def test_speaker_notes_markdown_and_html_formatting(self):
         self.export('<!-- A **bold** and <b>bold</b>, *italic* and <em>italic</em>\n'
-                    '__strong__ _em_ ***both*** <u>under</u> ~~gone~~ <del>gone</del>\n'
+                    '__under__ _line_ ***both*** <u>under</u> ~~gone~~ <del>gone</del>\n'
                     'Run `hype export` or <code>make</code>\n'
                     '<b>spans\nlines</b> but **not\nthis** -->\n\n# Hello\n')
         self.assertEqual(self.notes(), [
             (None, None, [('A ', ''), ('bold', 'bold'), (' and ', ''), ('bold', 'bold'), (', ', ''),
                           ('italic', 'italic'), (' and ', ''), ('italic', 'italic')]),
-            (None, None, [('strong', 'bold'), (' ', ''), ('em', 'italic'), (' ', ''),
+            (None, None, [('under', 'underline'), (' ', ''), ('line', 'underline'), (' ', ''),
                           ('both', 'bold italic'), (' ', ''), ('under', 'underline'), (' ', ''),
                           ('gone', 'strike'), (' ', ''), ('gone', 'strike')]),
             (None, None, [('Run ', ''), ('hype export', 'Courier New'), (' or ', ''),

@@ -64,7 +64,8 @@ puts "Code is highlighted when you name the language"
 - `# Headline` is big. Lists, quotes, tables, and inline `code` work.
 - `*asterisks*` are italic, `**double**` is bold, `_underscores_` underline.
 - Ordinary line breaks stay visible on the slide.
-- `<!-- comments -->` are hidden from the slide; use them for speaker notes.
+- `<!-- comments -->` are hidden from the slide; use them for speaker notes
+  (see Speaker notes below).
 - A `---` inside a code fence does not split the slide.
 
 ## Images and video
@@ -86,6 +87,29 @@ Each slide takes one image or video. Options go inside the brackets:
 
 Text on an image slide is overlaid in white over a slightly darkened picture.
 An image with a headline spans the slide unless you say `fit`.
+
+## Speaker notes
+
+Every `<!-- comment -->` on a slide is a speaker note, except comments inside
+code blocks and comments that begin with `hype`, which are layout directives.
+Several comments on one slide are joined in order. Presenter View shows them as
+written. A PowerPoint export puts them on each slide's notes page and formats
+them:
+
+- `**bold**`, `*italic*`, `_underline_`, `~~struck~~`, `` `code` ``
+- `<b>`, `<i>`, `<u>`, `<s>`, `<code>`, and `<br>` for a line break
+- `[text](https://…)` links; only `https`, `http`, and `mailto` are clickable
+- `- item` and `1. item` lists, indented two spaces per level; `# Heading`
+
+Each line of a note stays its own line. Anything else is kept as written.
+
+```markdown
+# Why now
+
+<!-- **Pause** here. Ask who shipped a talk this year.
+- mention the _Rails World_ demo
+- link: [slides](https://example.com/talk) -->
+```
 
 ## Diagrams
 
@@ -130,6 +154,11 @@ hype render talk/presentation.md --slide 3 -o slide.png
 hype render talk/presentation.md -o slides/        every slide, plus slides.json
 hype export talk/presentation.md talk.pdf          or talk.pptx
 ```
+
+A `.pptx` holds each slide as a 4K picture, so its text is not editable in
+PowerPoint; edit the Markdown and export again. Videos keep their options and
+are converted to H.264 MP4 when needed; a `span` video must be 16:9. Animated
+GIFs and WebPs become looping movies, and speaker notes become notes pages.
 
 Commands need no display. They exit 0 on success and 1 on failure, with errors
 on stderr. Render a slide and look at the PNG to judge how it reads.

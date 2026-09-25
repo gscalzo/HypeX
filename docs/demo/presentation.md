@@ -23,7 +23,7 @@ Present on Omarchy.
 ```mermaid
 flowchart LR
   mac([HypeX on macOS]) --> md[presentation.md] --> hype([Hype on Omarchy])
-  mac --> pdf[PDF]
+  mac --> pdf[PDF] & pptx[PowerPoint]
 ```
 
 ---
