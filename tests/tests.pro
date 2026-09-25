@@ -23,3 +23,9 @@ HEADERS += ../src/images.h
 SOURCES += ../src/filedialog.cpp
 SOURCES += ../src/recovery.cpp
 HEADERS += ../src/filedialog.h
+
+macx {
+    CONFIG -= app_bundle
+    INCLUDEPATH += /opt/homebrew/include
+    LIBS += -L/opt/homebrew/lib
+}

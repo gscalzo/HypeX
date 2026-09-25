@@ -1,0 +1,45 @@
+name: CI
+
+# macOS proves the drafting build; Linux proves the macOS patches left upstream's
+# behaviour alone. Both run the round-trip golden test.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch: # upstream-sync.yml dispatches this for its PRs
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install requirements
+        run: brew bundle --file=Brewfile
+      - name: Build Hype.app
+        run: bin/build-macos
+      - name: Unit and GUI tests
+        run: HYPE_GUI_TESTS=1 bin/test
+      - name: Command-line tests
+        run: python3 -m unittest tests.test_cli tests.test_shutdown tests.test_export
+      - name: Check the fixtures
+        run: |
+          for deck in examples/welcome.md tests/fixtures/roundtrip/*/presentation.md; do
+            build-macos/Hype.app/Contents/MacOS/Hype check "$deck"
+          done
+
+  linux:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install requirements
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git python \
+            qt6-base qt6-declarative qt6-multimedia qt6-imageformats qt6-svg \
+            ffmpeg source-highlight zlib libwebp ttf-jetbrains-mono ttf-jetbrains-mono-nerd
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bin/build
+      - name: Unit tests
+        run: bin/test
+      - name: Command-line and PowerPoint tests
+        run: python -m unittest tests.test_cli tests.test_shutdown tests.test_export

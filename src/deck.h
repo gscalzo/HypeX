@@ -123,6 +123,7 @@ class Deck : public QAbstractListModel {
     Q_INVOKABLE void redo();
     Q_INVOKABLE void chooseTheme(const QString &name);
     Q_INVOKABLE void openDialog();
+    void openPath(const QString &path);
     Q_INVOKABLE void save();
     Q_INVOKABLE void saveAs();
     Q_INVOKABLE void newDeck();

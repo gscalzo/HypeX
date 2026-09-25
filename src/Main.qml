@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import QtMultimedia
 import Hype 1.0
 import "Markdown.js" as Markdown
+import "MacKeys.js" as MacKeys
 
 ApplicationWindow {
     id: win
@@ -409,26 +410,26 @@ ApplicationWindow {
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: [StandardKey.Save]; onActivated: deck.save() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: [StandardKey.SaveAs]; onActivated: deck.saveAs() }
     Shortcut { sequence: "Ctrl+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pdf") }
-    Shortcut { sequence: "Ctrl+Shift+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pptx") }
+    Shortcut { sequence: "Ctrl+Shift+E"; enabled: MacKeys.pptx && !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pptx") }
     Shortcut { sequences: ["?", "Shift+?"]; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: shortcutsOverlay.open() }
     Shortcut { sequence: "F1"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting; onActivated: shortcutsOverlay.open() }
-    Shortcut { sequence: "Ctrl+M"; enabled: !win.popupOpen && !deck.compressingImage && (!win.presenting); onActivated: win.toggleOverview() }
+    Shortcut { sequence: MacKeys.overview; enabled: !win.popupOpen && !deck.compressingImage && (!win.presenting); onActivated: win.toggleOverview() }
     Shortcut { sequence: "Ctrl+."; enabled: !win.popupOpen && !deck.compressingImage && (!win.presenting); onActivated: win.toggleSource() }
     Shortcut { sequence: "Ctrl+B"; enabled: win.canFormat; onActivated: win.formatSlide("bold") }
     Shortcut { sequence: "Ctrl+I"; enabled: win.canFormat; onActivated: win.formatSlide("italic") }
     Shortcut { sequence: "Ctrl+U"; enabled: win.canFormat; onActivated: win.formatSlide("underline") }
-    Shortcut { sequence: "Ctrl+H"; enabled: win.canFormat; onActivated: win.formatSlide("headline") }
+    Shortcut { sequence: MacKeys.headline; enabled: win.canFormat; onActivated: win.formatSlide("headline") }
     Shortcut { sequence: "Ctrl+K"; enabled: win.canFormat; onActivated: win.formatSlide("code") }
     Shortcut { sequence: "Ctrl+/"; enabled: win.canFormat; onActivated: win.formatSlide("comment") }
     Shortcut { sequences: ["Return", "Enter"]; enabled: !win.popupOpen && !deck.compressingImage && win.overview && !win.presenting; onActivated: win.focusMarkdown() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+N"; onActivated: deck.newDeck() }
-    Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: ["F5", "Ctrl+Space"]; autoRepeat: false; onActivated: win.togglePresent() }
+    Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: MacKeys.present; autoRepeat: false; onActivated: win.togglePresent() }
     Shortcut { sequence: "Escape"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting); onActivated: win.togglePresent() }
     Shortcut { sequence: "Ctrl+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.undo() }
     Shortcut { sequence: "Ctrl+Shift+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.redo() }
     Shortcut { sequence: "Ctrl+D"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.duplicateSlide() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+Return"; onActivated: { win.addSlide() } }
-    Shortcut { sequence: "Delete"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.deleteSlide() }
+    Shortcut { sequences: MacKeys.deleteSlides; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.deleteSlide() }
     Shortcut { sequence: "Right"; enabled: !win.popupOpen && !deck.compressingImage && (win.presenting || (!slideEditor.activeFocus && !sourceEditor.activeFocus)); onActivated: deck.select(deck.selected + 1) }
     Shortcut { sequence: "Ctrl+Right"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: win.moveSlides(1) }
     Shortcut { sequence: "Shift+Right"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: { deck.extendSelection(deck.selected + 1); if (win.markdown) win.alignSource(false) } }
@@ -462,7 +463,7 @@ ApplicationWindow {
         Layout.leftMargin: primary ? 9 : 0
         padding: 0
         Accessible.name: description
-        ToolTip.visible: hovered; ToolTip.text: description
+        ToolTip.visible: hovered; ToolTip.text: MacKeys.label(description)
         contentItem: Item {
             AppIcon {
                 anchors.centerIn: parent; width: 18; height: 18; name: toolbarButton.iconName; opacity: toolbarButton.enabled ? 1 : 0.4
@@ -490,7 +491,7 @@ ApplicationWindow {
         leftPadding: 10; rightPadding: 10; topPadding: 0; bottomPadding: 0
         focusPolicy: Qt.NoFocus
         Accessible.name: description
-        ToolTip.visible: hovered; ToolTip.text: description
+        ToolTip.visible: hovered; ToolTip.text: MacKeys.label(description)
         contentItem: Row {
             spacing: 7; opacity: editorButton.enabled ? 1 : 0.4
             AppIcon { visible: !editorButton.menu || editorButton.compact; anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: editorButton.iconName; color: editorButton.ink }
@@ -578,7 +579,7 @@ ApplicationWindow {
         contentItem: Item {
             opacity: appMenuItem.enabled ? 1 : 0.4
             Label { id: itemLabel; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: appMenuItem.text; font: appMenuItem.font; color: appMenuItem.ink }
-            Label { id: itemHint; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: appMenuItem.hint; font.pixelSize: 12; color: win.ui.muted }
+            Label { id: itemHint; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: MacKeys.label(appMenuItem.hint); font.pixelSize: 12; color: win.ui.muted }
         }
         background: Rectangle { radius: Math.min(4, win.rounding); color: appMenuItem.highlighted && appMenuItem.enabled ? win.ui.hover : "transparent" }
     }
@@ -785,7 +786,7 @@ ApplicationWindow {
                     AppMenuItem { text: "Save as…"; hint: "Ctrl+Shift+S"; onTriggered: deck.saveAs() }
                     AppMenuSeparator {}
                     AppMenuItem { text: "Export as PDF…"; hint: "Ctrl+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pdf") }
-                    AppMenuItem { text: "Export as PowerPoint…"; hint: "Ctrl+Shift+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pptx") }
+                    AppMenuItem { text: "Export as PowerPoint…"; hint: "Ctrl+Shift+E"; visible: MacKeys.pptx; height: visible ? implicitHeight : 0; enabled: !deck.exporting; onTriggered: deck.exportDialog("pptx") }
                     AppMenuSeparator {}
                     AppMenuItem { text: "Version history…"; onTriggered: historyDialog.open() }
                 }
@@ -838,11 +839,11 @@ ApplicationWindow {
                         Layout.alignment: Qt.AlignTop; spacing: 7
                         Label { text: modelData.title.toUpperCase(); font.pixelSize: 11; font.letterSpacing: 1; color: win.ui.accent; Layout.bottomMargin: 2 }
                         Repeater {
-                            model: modelData.keys
+                            model: modelData.keys.filter(MacKeys.available)
                             RowLayout {
                                 required property var modelData
                                 spacing: 14
-                                Label { text: modelData[0].replace(/\+/g, " + "); font.family: "JetBrains Mono"; font.pixelSize: 12; color: win.ui.foreground; Layout.preferredWidth: 180 }
+                                Label { text: MacKeys.label(modelData[0]).replace(/\+/g, " + "); font.family: "JetBrains Mono"; font.pixelSize: 12; color: win.ui.foreground; Layout.preferredWidth: 180 }
                                 Label { text: modelData[1]; font.pixelSize: 13; color: win.ui.muted }
                             }
                         }

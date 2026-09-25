@@ -78,6 +78,14 @@ class TestFilePortal : public QDBusVirtualObject {
     }
 };
 
+// macOS keeps Ctrl+M and Ctrl+Space (⌘M, ⌘Space) for itself; see src/MacKeys.js.
+#ifdef Q_OS_MACOS
+static const QKeyCombination overviewKey = Qt::ControlModifier | Qt::Key_0;
+static const QKeyCombination presentKey = Qt::ControlModifier | Qt::AltModifier | Qt::Key_P;
+#else
+static const QKeyCombination overviewKey = Qt::ControlModifier | Qt::Key_M;
+static const QKeyCombination presentKey = Qt::ControlModifier | Qt::Key_Space;
+#endif
 class HypeTests : public QObject {
     Q_OBJECT
     QTemporaryDir settingsDirectory;
@@ -1035,7 +1043,11 @@ class HypeTests : public QObject {
         QCOMPARE(withMedia(examples, replacement), examples + "\n" + replacement + "\n");
     }
     void asynchronousExport() {
+#ifdef Q_OS_MACOS
+        const QString executable = QFINDTESTDATA("../build-macos/Hype.app/Contents/MacOS/Hype");
+#else
         const QString executable = QFINDTESTDATA("../build/hype");
+#endif
         QVERIFY(!executable.isEmpty());
         QTemporaryDir tmp;
         Deck deck(nullptr, executable);
@@ -1070,6 +1082,11 @@ class HypeTests : public QObject {
         const QString pptxPath = tmp.path() + "/talk.pptx";
         deck.startExport("pptx", pptxPath);
         QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 15000);
+#ifdef Q_OS_MACOS
+        QVERIFY(!finished.last()[0].toBool());
+        QVERIFY(!QFile::exists(pptxPath));
+        QSKIP("PowerPoint export is not available on macOS");
+#endif
         QVERIFY(finished.last()[0].toBool());
         QFile pptx(pptxPath);
         QVERIFY(pptx.open(QIODevice::ReadOnly));
@@ -1196,6 +1213,10 @@ class HypeTests : public QObject {
             QSKIP("Set HYPE_GUI_TESTS=1 with local multimedia access");
         if (qEnvironmentVariable("QT_QUICK_BACKEND") == "software")
             QSKIP("Video pixel capture requires QT_QUICK_BACKEND=rhi");
+#ifdef Q_OS_MACOS
+        if (QGuiApplication::platformName() == "offscreen")
+            QSKIP("Video pixel capture on macOS requires QT_QPA_PLATFORM=cocoa");
+#endif
         QTemporaryDir files;
         QVERIFY(QDir().mkpath(files.path() + "/videos"));
         QProcess ffmpeg;
@@ -1491,19 +1512,19 @@ class HypeTests : public QObject {
         // Ctrl+M flips the overview on and off, returning to the mode it came from;
         // Ctrl+. flips the Markdown source.
         QCOMPARE(window->property("mode").toString(), QString("visual"));
-        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClick(window, overviewKey.key(), overviewKey.keyboardModifiers());
         QCOMPARE(window->property("mode").toString(), QString("overview"));
-        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClick(window, overviewKey.key(), overviewKey.keyboardModifiers());
         QCOMPARE(window->property("mode").toString(), QString("visual"));
         QTest::keyClick(window, Qt::Key_Period, Qt::ControlModifier);
         QCOMPARE(window->property("mode").toString(), QString("markdown"));
-        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClick(window, overviewKey.key(), overviewKey.keyboardModifiers());
         QCOMPARE(window->property("mode").toString(), QString("overview"));
-        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClick(window, overviewKey.key(), overviewKey.keyboardModifiers());
         QCOMPARE(window->property("mode").toString(), QString("markdown"));
         QTest::keyClick(window, Qt::Key_Period, Qt::ControlModifier);
         QCOMPARE(window->property("mode").toString(), QString("visual"));
-        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClick(window, overviewKey.key(), overviewKey.keyboardModifiers());
         QCOMPARE(window->property("mode").toString(), QString("overview"));
         QTRY_VERIFY(grid->isVisible());
         QVERIFY(!list->isVisible());
@@ -2015,11 +2036,11 @@ class HypeTests : public QObject {
         QVERIFY(!window->property("markdown").toBool());
         QVERIFY(stage->isVisible() && editor->isVisible());
         QVERIFY(stage->hasActiveFocus());
-        QTest::keyClick(window, Qt::Key_Space, Qt::ControlModifier);
+        QTest::keyClick(window, presentKey.key(), presentKey.keyboardModifiers());
         QVERIFY(window->property("presenting").toBool());
         QVERIFY(!window->findChild<QQuickItem *>("editorPane")->isVisible());
         QVERIFY(stage->isVisible());
-        QTest::keyClick(window, Qt::Key_Space, Qt::ControlModifier);
+        QTest::keyClick(window, presentKey.key(), presentKey.keyboardModifiers());
         QVERIFY(!window->property("presenting").toBool());
         QVERIFY(editor->isVisible());
         QString trial2025 = QFINDTESTDATA("../trials/rails-world-2025/presentation.md");
@@ -2913,6 +2934,50 @@ class HypeTests : public QObject {
         QFile f(path);
         QVERIFY(f.open(QIODevice::ReadOnly));
         QCOMPARE(f.readAll(), QByteArray("existing"));
+    }
+    // A deck drafted in one Hype must be the deck another Hype reads: opening, saving
+    // and editor operations that change nothing leave the Markdown byte-identical.
+    void roundTripIsByteIdentical_data() {
+        QTest::addColumn<QString>("fixture");
+        QTest::newRow("welcome") << QFINDTESTDATA("../examples/welcome.md");
+        QTest::newRow("format") << QFINDTESTDATA("fixtures/roundtrip/format/presentation.md");
+        QTest::newRow("media") << QFINDTESTDATA("fixtures/roundtrip/media/presentation.md");
+    }
+    void roundTripIsByteIdentical() {
+        QFETCH(QString, fixture);
+        QVERIFY(!fixture.isEmpty());
+        QFile original(fixture);
+        QVERIFY(original.open(QIODevice::ReadOnly));
+        const QByteArray golden = original.readAll();
+        QTemporaryDir tmp;
+        const QString path = tmp.path() + "/presentation.md";
+        write(path, QString::fromUtf8(golden));
+        auto onDisk = [&] {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        Deck deck;
+        QVERIFY(deck.loadPath(path, false));
+        QCOMPARE(deck.source().toUtf8(), golden);
+        QVERIFY(deck.savePath(path));
+        QCOMPARE(onDisk(), golden);
+        // The visual editor hands each slide's text back on focus and selection changes.
+        for (int i = 0; i < deck.count(); ++i) {
+            deck.select(i);
+            deck.editSlide(deck.slide(i));
+        }
+        QCOMPARE(deck.source().toUtf8(), golden);
+        deck.moveSlide(0, 1);
+        deck.moveSlide(1, 0);
+        QCOMPARE(deck.source().toUtf8(), golden);
+        deck.select(0);
+        deck.duplicateSlide();
+        deck.deleteSlide();
+        QCOMPARE(deck.source().toUtf8(), golden);
+        deck.chooseFont(deck.fontName());
+        QCOMPARE(deck.source().toUtf8(), golden);
+        QVERIFY(deck.savePath(path));
+        QCOMPARE(onDisk(), golden);
     }
 };
 QTEST_MAIN(HypeTests)

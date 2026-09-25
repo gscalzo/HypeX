@@ -4,9 +4,14 @@
 #include "renderer.h"
 #include <QGuiApplication>
 #include <QCommandLineParser>
+#ifdef Q_OS_MACOS
+#include "macos.h"
+#include <QApplication>
+#else
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusVariant>
+#endif
 #include <QFont>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -21,6 +26,7 @@
 // The desktop's interface font, e.g. "Adwaita Sans 11", which the gtk3 platform
 // theme used to supply. Without a settings portal Qt's default font stays.
 static void adoptDesktopFont() {
+#ifndef Q_OS_MACOS
     auto call = QDBusMessage::createMethodCall("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
                                                "org.freedesktop.portal.Settings", "ReadOne");
     call.setArguments({"org.gnome.desktop.interface", "font-name"});
@@ -33,11 +39,14 @@ static void adoptDesktopFont() {
     QFont font(name.left(space));
     font.setPointSizeF(size);
     QGuiApplication::setFont(font);
+#endif
 }
 int main(int argc, char **argv) {
     // Hype themes itself. Qt's gtk3 platform theme only adds a use-after-free
     // inside GTK when the desktop theme changes under a running editor.
+#ifndef Q_OS_MACOS // The Cocoa theme supplies native file dialogs.
     qputenv("QT_QPA_PLATFORMTHEME", "generic");
+#endif
     // Commands, exports and help draw no window, so they must not need a display,
     // even where the desktop exports QT_QPA_PLATFORM=wayland.
     // Bare hype prints help, as a command line tool should; launchers say hype open.
@@ -51,7 +60,12 @@ int main(int argc, char **argv) {
     }
     if (windowless)
         qputenv("QT_QPA_PLATFORM", "offscreen");
+#ifdef Q_OS_MACOS // QFileDialog's native panels need QApplication.
+    QApplication app(argc, argv);
+    prepareMacEnvironment();
+#else
     QGuiApplication app(argc, argv);
+#endif
     app.setApplicationName("hype");
     app.setApplicationVersion("0.4.1");
     app.setDesktopFileName(qEnvironmentVariable("HYPE_DESKTOP_FILE", "hype"));
@@ -131,6 +145,9 @@ int main(int argc, char **argv) {
         return success ? 0 : 1;
     }
     deck.enableAutosave();
+#ifdef Q_OS_MACOS
+    openFinderFiles(&deck);
+#endif
     adoptDesktopFont();
     QQuickStyle::setStyle("Basic");
     qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");

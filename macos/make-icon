@@ -1,0 +1,12 @@
+#!/bin/sh
+# Regenerate macos/Hype.icns from the Linux package's SVG icon.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+SET="$(mktemp -d)/Hype.iconset"
+mkdir -p "$SET"
+for size in 16 32 128 256 512; do
+    sips -s format png -z $size $size "$ROOT/pkgbuild/hype.svg" --out "$SET/icon_${size}x${size}.png" >/dev/null
+    double=$((size * 2))
+    sips -s format png -z $double $double "$ROOT/pkgbuild/hype.svg" --out "$SET/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$SET" -o "$ROOT/macos/Hype.icns"

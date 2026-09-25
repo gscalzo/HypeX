@@ -1,0 +1,35 @@
+#!/bin/sh
+# Build a self-contained build-macos/Hype.app: Qt, source-highlight and the stock
+# Omarchy themes inside, ad-hoc signed. ffmpeg comes from Homebrew at runtime.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if ! brew bundle check --file="$ROOT/Brewfile" >/dev/null; then
+    echo "Missing requirements. Install them with: brew bundle --file=\"$ROOT/Brewfile\"" >&2
+    brew bundle check --file="$ROOT/Brewfile" --verbose >&2 || true
+    exit 1
+fi
+BREW="$(brew --prefix)"
+BUILD="$ROOT/build-macos"
+APP="$BUILD/Hype.app"
+mkdir -p "$BUILD"
+cd "$BUILD"
+qmake "$ROOT/hype.pro"
+make -j"$(sysctl -n hw.ncpu)"
+# Qt frameworks and QML modules.
+# Homebrew splits Qt into kegs (qtbase, qtsvg, ...); name every one so @rpaths resolve.
+LIBPATHS=""
+for keg in "$BREW"/opt/qt*/lib; do LIBPATHS="$LIBPATHS -libpath=$keg"; done
+# shellcheck disable=SC2086
+macdeployqt "$APP" -qmldir="$ROOT/src" -always-overwrite $LIBPATHS 2>&1 | { ! grep ERROR; }
+# Qt needs the md4c ABI it was built against, or _underline_ is lost (see macos/build-md4c).
+cp -f "$("$ROOT/macos/build-md4c")" "$APP/Contents/Frameworks/libmd4c.0.dylib"
+# Commands and exports run offscreen; macdeployqt only ships the cocoa platform.
+cp -f "$BREW/opt/qtbase/share/qt/plugins/platforms/libqoffscreen.dylib" "$APP/Contents/PlugIns/platforms/"
+# source-highlight with its libraries and language definitions.
+cp -f "$BREW/bin/source-highlight" "$APP/Contents/MacOS/source-highlight"
+dylibbundler -of -b -cd -x "$APP/Contents/MacOS/source-highlight" \
+    -d "$APP/Contents/Frameworks" -p @executable_path/../Frameworks/ >/dev/null
+mkdir -p "$APP/Contents/Resources/source-highlight"
+cp -RLf "$BREW/share/source-highlight/." "$APP/Contents/Resources/source-highlight/"
+codesign --force --deep --sign - "$APP"
+echo "Built $APP"

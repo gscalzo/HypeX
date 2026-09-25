@@ -1,0 +1,10 @@
+#!/bin/sh
+# Build Hype.app, copy it to /Applications and put the hype command on PATH.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+"$ROOT/bin/build-macos"
+ditto "$ROOT/build-macos/Hype.app" /Applications/Hype.app
+# A wrapper, not a symlink: Qt finds the bundle's plugins only from the real path.
+printf '#!/bin/sh\nexec /Applications/Hype.app/Contents/MacOS/Hype "$@"\n' >"$(brew --prefix)/bin/hype"
+chmod +x "$(brew --prefix)/bin/hype"
+echo "Installed /Applications/Hype.app and $(brew --prefix)/bin/hype"

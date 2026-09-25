@@ -468,6 +468,10 @@ void Deck::discoverThemes() {
     QString root = qEnvironmentVariable("OMARCHY_PATH", QDir::homePath() + "/.local/share/omarchy");
     QStringList roots{root + "/themes", QDir::homePath() + "/omarchy/themes",
                       QDir::homePath() + "/.config/omarchy/themes"};
+#ifdef Q_OS_MACOS
+    // Stock Omarchy themes ship inside Hype.app; installed ones still take precedence.
+    roots.prepend(QCoreApplication::applicationDirPath() + "/../Resources/themes");
+#endif
     for (auto &r : roots)
         for (auto &name : QDir(r).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
             QString path = r + "/" + name + "/colors.toml";
@@ -761,6 +765,10 @@ void Deck::openDialog() {
     const QString p = FileDialog::choose(false, dialogDirectory(), "Markdown", {"*.md"}, &error);
     if (!error.isEmpty()) setStatus(error);
     if (!p.isEmpty() && loadPath(p))
+        emit opened(true);
+}
+void Deck::openPath(const QString &path) {
+    if (confirmDiscard() && loadPath(path))
         emit opened(true);
 }
 void Deck::save() {
@@ -1159,6 +1167,12 @@ void Deck::setMediaMode(const QString &mode) {
 void Deck::exportDialog(const QString &format) {
     if (m_exporting)
         return;
+#ifdef Q_OS_MACOS
+    if (format == "pptx") {
+        setStatus("PowerPoint export is not available on macOS.");
+        return;
+    }
+#endif
     QString error;
     const QString p = FileDialog::choose(
         true,
@@ -1487,6 +1501,11 @@ bool Deck::renderImages(const QString &directory, int width, bool convertAnimati
     return true;
 }
 bool Deck::exportPptx(const QString &path) {
+#ifdef Q_OS_MACOS // Drafting only: render PowerPoint on Omarchy.
+    Q_UNUSED(path);
+    setStatus("PowerPoint export is not available on macOS.");
+    return false;
+#endif
     QTemporaryDir temp;
     if (!renderImages(temp.path(), 3840, true))
         return false;

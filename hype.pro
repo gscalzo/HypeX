@@ -26,3 +26,21 @@ HEADERS += src/filedialog.h
 SOURCES += src/recovery.cpp
 SOURCES += src/cli.cpp
 HEADERS += src/cli.h
+
+# macOS: a self-contained Hype.app for drafting. PowerPoint export stays compiled
+# but is unavailable; file dialogs are native instead of the desktop portal.
+macx {
+    TARGET = Hype
+    QT -= dbus
+    QT += widgets
+    SOURCES -= src/filedialog.cpp
+    SOURCES += src/filedialog_mac.cpp src/macos.cpp
+    HEADERS += src/macos.h
+    INCLUDEPATH += /opt/homebrew/include
+    LIBS += -L/opt/homebrew/lib
+    QMAKE_INFO_PLIST = $$PWD/macos/Info.plist
+    ICON = $$PWD/macos/Hype.icns
+    themes.files = $$PWD/themes
+    themes.path = Contents/Resources
+    QMAKE_BUNDLE_DATA += themes
+}

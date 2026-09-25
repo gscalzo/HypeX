@@ -1,0 +1,17 @@
+#!/bin/sh
+# Homebrew's Qt was built against md4c 0.5, but Homebrew now ships md4c 0.6, whose
+# renumbered span types and flags make Qt drop _underline_ from GitHub-dialect
+# Markdown. Build the ABI Qt expects: prints the path of libmd4c.0.dylib.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+VERSION=0.5.3
+OUT="$ROOT/build-macos/md4c-$VERSION"
+if [ ! -f "$OUT/libmd4c.0.dylib" ]; then
+    mkdir -p "$OUT"
+    curl -fsSL "https://raw.githubusercontent.com/mity/md4c/release-$VERSION/src/md4c.c" -o "$OUT/md4c.c"
+    curl -fsSL "https://raw.githubusercontent.com/mity/md4c/release-$VERSION/src/md4c.h" -o "$OUT/md4c.h"
+    clang -O2 -dynamiclib -DMD4C_USE_UTF8 -I"$OUT" "$OUT/md4c.c" \
+        -install_name @rpath/libmd4c.0.dylib \
+        -compatibility_version 0.0.0 -current_version "$VERSION" -o "$OUT/libmd4c.0.dylib"
+fi
+echo "$OUT/libmd4c.0.dylib"

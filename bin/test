@@ -4,5 +4,10 @@ ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 mkdir -p "$ROOT/build/tests"
 cd "$ROOT/build/tests"
 qmake6 "$ROOT/tests/tests.pro"
-make -j"$(nproc)"
+make -j"$(getconf _NPROCESSORS_ONLN)"
+if [ "$(uname)" = Darwin ]; then
+    # Homebrew's Qt needs md4c 0.5 to read _underline_; see macos/build-md4c.
+    DYLD_LIBRARY_PATH="$(dirname "$("$ROOT/macos/build-md4c")")"
+    export DYLD_LIBRARY_PATH
+fi
 QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion ./hype-tests "$@"

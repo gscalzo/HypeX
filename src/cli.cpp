@@ -1,6 +1,9 @@
 #include "cli.h"
 #include "deck.h"
 #include "renderer.h"
+#ifdef Q_OS_MACOS
+#include "macos.h"
+#endif
 #include <QCommandLineParser>
 #include <QDir>
 #include <QFile>
@@ -75,6 +78,11 @@ QList<Problem> findProblems(const Deck &deck) {
         scalar(parsed.header, "color_background").isEmpty())
         problems << Problem{0, headerLine("theme"), false,
                             "Theme " + deck.themeName() + " is not installed; using the default colors"};
+#ifdef Q_OS_MACOS
+    if (!isOmarchyFont(deck.fontName()))
+        problems << Problem{0, headerLine("font"), false,
+                            "Font " + deck.fontName() + " is not installed by default on Omarchy"};
+#endif
     QList<int> indices;
     for (int i = 0; i < deck.count(); ++i)
         indices << i;

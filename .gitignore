@@ -5,3 +5,4 @@
 /pkgbuild/src/
 /pkgbuild/*.pkg.tar.*
 __pycache__/
+/build-macos/

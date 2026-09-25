@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 
-APP = Path(__file__).resolve().parents[1] / 'build/hype'
+APP = Path(__file__).resolve().parents[1] / ('build-macos/Hype.app/Contents/MacOS/Hype' if sys.platform == 'darwin' else 'build/hype')
 DECK = '# One\n\n---\n\n# Two\n\n- a\n- b\n\n---\n\n```ruby\na = 1\n---\nb = 2\n```\n'
 
 
@@ -15,7 +16,7 @@ class CliTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         # No display, on a desktop that asks Qt for Wayland: commands must pick offscreen themselves.
         self.env = {key: value for key, value in os.environ.items() if key not in ('DISPLAY', 'WAYLAND_DISPLAY')}
         self.env.update(QT_QPA_PLATFORM='wayland;xcb', XDG_CONFIG_HOME=str(self.root / 'config'),
@@ -110,9 +111,13 @@ class CliTests(unittest.TestCase):
         self.write(DECK)
         self.hype('export', self.deck, 'out/talk.pdf')
         self.assertEqual((self.root / 'out/talk.pdf').read_bytes()[:5], b'%PDF-')
-        exported = json.loads(self.hype('export', self.deck, 'talk.pptx', '--json').stdout)
-        self.assertEqual((exported['format'], exported['slides']), ('pptx', 3))
-        self.assertEqual((self.root / 'talk.pptx').read_bytes()[:2], b'PK')
+        if sys.platform == 'darwin':
+            self.assertIn('not available on macOS', self.hype('export', self.deck, 'talk.pptx', code=1).stderr)
+            self.assertFalse((self.root / 'talk.pptx').exists())
+        else:
+            exported = json.loads(self.hype('export', self.deck, 'talk.pptx', '--json').stdout)
+            self.assertEqual((exported['format'], exported['slides']), ('pptx', 3))
+            self.assertEqual((self.root / 'talk.pptx').read_bytes()[:2], b'PK')
         self.assertIn('.pdf or .pptx', self.hype('export', self.deck, 'talk.key', code=1).stderr)
 
     def test_flags_export_without_a_display_and_need_a_presentation(self):
@@ -123,7 +128,12 @@ class CliTests(unittest.TestCase):
         self.assertFalse((self.root / 'config/hype/hype.ini').exists())
 
     def test_themes_and_help(self):
-        self.assertEqual(json.loads(self.hype('themes', '--json').stdout)['themes'], ['paper'])
+        themes = json.loads(self.hype('themes', '--json').stdout)['themes']
+        if sys.platform == 'darwin':  # Hype.app bundles the stock Omarchy themes.
+            self.assertIn('paper', themes)
+            self.assertIn('tokyo-night', themes)
+        else:
+            self.assertEqual(themes, ['paper'])
         self.assertIn('hype check', self.hype('help', 'format').stdout)
         self.assertIn('--slide', self.hype('help', 'render').stdout)
         self.assertIn('help format', self.hype('help').stdout)

@@ -1,0 +1,54 @@
+name: Upstream sync
+
+# Weekly: merge omacom/hype into a branch and open a PR, or an issue on conflicts.
+# Never merges automatically; the macOS remap can compile and still misbehave.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/omacom/hype.git
+          git fetch upstream master
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "Already up to date with upstream."
+            exit 0
+          fi
+          branch="sync/upstream-$(date +%Y-%m-%d)"
+          if gh pr list --state open --search "head:sync/upstream-" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "An upstream sync PR is already open."
+            exit 0
+          fi
+          git switch -c "$branch"
+          commits="$(git log --oneline HEAD..upstream/master)"
+          if git merge --no-edit upstream/master; then
+            git push origin "$branch"
+            gh pr create --base master --head "$branch" \
+              --title "Merge upstream Hype ($(date +%Y-%m-%d))" \
+              --body "$(printf 'Upstream commits:\n\n```\n%s\n```\n\nCheck the macOS shortcut remap (src/MacKeys.js) and the format docs before merging.' "$commits")"
+            # Pull requests opened with GITHUB_TOKEN do not trigger CI on their own.
+            gh workflow run ci.yml --ref "$branch"
+          else
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            git merge --abort
+            gh issue create --title "Upstream merge conflicts ($(date +%Y-%m-%d))" \
+              --body "$(printf 'Merging upstream/master conflicts in:\n\n```\n%s\n```\n\nUpstream commits:\n\n```\n%s\n```' "$conflicts" "$commits")"
+          fi

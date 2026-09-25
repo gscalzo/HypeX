@@ -1,0 +1,16 @@
+#!/bin/sh
+# Snapshot the stock Omarchy themes' colors into themes/, bundled into Hype.app on macOS.
+# Run it again whenever Omarchy adds or changes themes, then commit the result.
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+REPO="${OMARCHY_REPO:-basecamp/omarchy}"
+BRANCH="${OMARCHY_BRANCH:-HEAD}" # HEAD follows the default branch
+names="$(curl -fsSL "https://api.github.com/repos/$REPO/contents/themes$([ "$BRANCH" = HEAD ] || echo "?ref=$BRANCH")" |
+    python3 -c 'import json, sys; print("\n".join(e["name"] for e in json.load(sys.stdin) if e["type"] == "dir"))')"
+rm -rf "$ROOT/themes"
+for name in $names; do
+    mkdir -p "$ROOT/themes/$name"
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/$BRANCH/themes/$name/colors.toml" \
+        -o "$ROOT/themes/$name/colors.toml"
+done
+echo "Synced $(echo "$names" | wc -l | tr -d ' ') themes from $REPO@$BRANCH"

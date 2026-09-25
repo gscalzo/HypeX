@@ -5,13 +5,21 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
 
-APP = Path(__file__).resolve().parents[1] / 'build/hype'
+APP = Path(__file__).resolve().parents[1] / ('build-macos/Hype.app/Contents/MacOS/Hype' if sys.platform == 'darwin' else 'build/hype')
+
+
+def setUpModule():
+    if sys.platform == 'darwin':
+        raise unittest.SkipTest('PowerPoint export is not available on macOS')
+
+
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
       'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}

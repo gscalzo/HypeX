@@ -14,6 +14,25 @@ omarchy pkg add hype
 
 Then open **Hype** from the app launcher, or run `hype` in a terminal.
 
+## Draft on macOS
+
+This fork builds Hype for macOS, for drafting decks that you then present or export from Omarchy. The Markdown is the same file: Hype's own parser and renderer run on both, and a round-trip test checks that opening, editing and saving on macOS leaves a deck byte-identical.
+
+Requirements are in the [Brewfile](Brewfile): Qt, source-highlight, ffmpeg, webp, dylibbundler, and the JetBrains Mono fonts Omarchy uses.
+
+```sh
+brew bundle
+bin/install-macos     # builds Hype.app, copies it to /Applications, installs the hype command
+```
+
+`bin/build-macos` builds `build-macos/Hype.app` without installing it. The app bundles Qt, source-highlight and the stock Omarchy themes (refresh them with `bin/sync-themes`); videos use Homebrew's ffmpeg. Open decks from Hype, with Finder's **Open With**, or by dropping them on the Dock icon.
+
+Differences from Omarchy:
+
+- PDF export only. PowerPoint export is Omarchy's job.
+- ⌘ replaces Ctrl, except where macOS owns the key: present with **⌥⌘P** or F5, headline with **⌘1**, overview with **⌘0**, and delete slides with **⌫**. Press **?** for the full list.
+- `hype check` warns when a deck's font isn't installed on Omarchy by default (JetBrains Mono, Noto, iA Writer), since text is sized to fit and another font changes the layout.
+
 ## Make a presentation
 
 Open Hype from your app launcher. It reopens your last presentation; use **Ctrl+N** to start a new one, or **Ctrl+O** to choose a Markdown file.
