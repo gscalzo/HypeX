@@ -113,7 +113,7 @@ Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
 
 ### Time your talk
 
-Give the talk a length on its first slide, and Presenter View counts it down next to the slide counter:
+Give the talk a length on its first slide, and Presenter View counts it down in large digits in its lower-right corner, under the next slide:
 
 ```markdown
 <!-- hype: duration="20m" -->

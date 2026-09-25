@@ -430,14 +430,6 @@ ApplicationWindow {
                     Layout.fillWidth: true; elide: Text.ElideRight
                 }
                 Label {
-                    objectName: "talkClock"
-                    visible: deck.talkDuration > 0
-                    text: (win.talkRemaining < 0 ? "+" : "") + win.clockText(Math.abs(win.talkRemaining))
-                    color: win.talkStart === 0 ? win.ui.muted : win.talkRemaining < 0 ? win.ui.error
-                        : win.talkRemaining <= 120 ? win.ui.accent : win.ui.foreground
-                    font.family: "JetBrains Mono"; font.pixelSize: 22; font.bold: true
-                }
-                Label {
                     text: "Slide " + (deck.selected + 1) + " of " + deck.count
                     color: win.ui.muted; font.pixelSize: 16
                 }
@@ -448,32 +440,46 @@ ApplicationWindow {
                     background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
                 }
             }
-            RowLayout {
-                Layout.fillWidth: true; Layout.preferredHeight: presenterWindow.height * 0.42; spacing: 22
-                ColumnLayout {
-                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 2
-                    Label { text: "CURRENT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-                    Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: Math.min(parent.width, parent.height * 16 / 9)
-                            height: width * 9 / 16
-                            color: deck.background; border.color: win.ui.border
-                            Image {
-                                anchors.fill: parent
-                                source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
-                                asynchronous: true; retainWhileLoading: true; cache: true
-                                sourceSize: Qt.size(960, 540)
-                            }
+            // With a talk length, the clock fills the column under the next slide.
+            GridLayout {
+                id: presenterGrid
+                readonly property bool timed: deck.talkDuration > 0
+                readonly property real columnWidth: (width - columnSpacing) / 3
+                Layout.fillWidth: true; Layout.fillHeight: true
+                columns: 2; columnSpacing: 22; rowSpacing: 12
+                Label {
+                    Layout.row: 0; Layout.column: 0
+                    text: "CURRENT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true
+                }
+                Label {
+                    Layout.row: 0; Layout.column: 1
+                    text: "NEXT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true
+                }
+                Item {
+                    Layout.row: 1; Layout.column: 0
+                    Layout.fillWidth: true; Layout.preferredWidth: presenterGrid.columnWidth * 2
+                    Layout.preferredHeight: presenterWindow.height * 0.42
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width, parent.height * 16 / 9)
+                        height: width * 9 / 16
+                        color: deck.background; border.color: win.ui.border
+                        Image {
+                            anchors.fill: parent
+                            source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
+                            asynchronous: true; retainWhileLoading: true; cache: true
+                            sourceSize: Qt.size(960, 540)
                         }
                     }
                 }
                 ColumnLayout {
-                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
-                    Label { text: "NEXT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
+                    Layout.row: 1; Layout.column: 1; Layout.rowSpan: presenterGrid.timed ? 4 : 1
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: presenterGrid.columnWidth
+                    spacing: 12
                     Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
+                        id: nextBox
+                        Layout.fillWidth: true; Layout.fillHeight: !presenterGrid.timed
+                        Layout.preferredHeight: presenterGrid.timed ? width * 9 / 16 : -1
                         Rectangle {
                             anchors.centerIn: parent
                             width: Math.min(parent.width, parent.height * 16 / 9)
@@ -492,20 +498,56 @@ ApplicationWindow {
                             }
                         }
                     }
+                    Label {
+                        visible: presenterGrid.timed; Layout.topMargin: 22; Layout.alignment: Qt.AlignRight
+                        text: win.talkStart === 0 ? "TALK LENGTH" : win.talkRemaining < 0 ? "OVER TIME" : "TIME LEFT"
+                        color: win.ui.muted; font.pixelSize: 12; font.bold: true
+                    }
+                    Item {
+                        id: clockBox
+                        visible: presenterGrid.timed
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        TextMetrics {
+                            id: digitMetrics
+                            font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: 100; text: "0"
+                        }
+                        Label {
+                            objectName: "talkClock"
+                            anchors.right: parent.right; anchors.baseline: parent.bottom
+                            text: (win.talkRemaining < 0 ? "+" : "") + win.clockText(Math.abs(win.talkRemaining))
+                            color: win.talkStart === 0 ? win.ui.muted : win.talkRemaining < 0 ? win.ui.error
+                                : win.talkRemaining <= 120 ? win.ui.accent : win.ui.foreground
+                            font.family: "JetBrains Mono"; font.bold: true
+                            // Size for the talk's usual width (20:00, 1:30:00) so the digits hold still;
+                            // only a longer reading such as +10:00 shrinks them.
+                            readonly property int columns: Math.max(deck.talkDuration >= 3600 ? 7 : 5, text.length)
+                            font.pixelSize: Math.max(22, Math.floor(Math.min(
+                                clockBox.width * 100 / Math.max(1, digitMetrics.advanceWidth * columns),
+                                clockBox.height * 0.8)))
+                        }
+                    }
                 }
-            }
-            Rectangle { Layout.fillWidth: true; height: 1; color: win.ui.border }
-            Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-            ScrollView {
-                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
-                TextArea {
-                    objectName: "presenterNotes"; readOnly: true; selectByMouse: true
-                    text: deck.speakerNotes || "No speaker notes for this slide."
-                    color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
-                    font.pixelSize: 24; wrapMode: TextEdit.Wrap
-                    leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
-                    background: null
+                Rectangle {
+                    Layout.row: 2; Layout.column: 0; Layout.columnSpan: presenterGrid.timed ? 1 : 2
+                    Layout.fillWidth: true; Layout.topMargin: 10; height: 1; color: win.ui.border
+                }
+                Label {
+                    Layout.row: 3; Layout.column: 0; Layout.columnSpan: presenterGrid.timed ? 1 : 2
+                    Layout.topMargin: 10
+                    text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true
+                }
+                ScrollView {
+                    Layout.row: 4; Layout.column: 0; Layout.columnSpan: presenterGrid.timed ? 1 : 2
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; clip: true
+                    background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
+                    TextArea {
+                        objectName: "presenterNotes"; readOnly: true; selectByMouse: true
+                        text: deck.speakerNotes || "No speaker notes for this slide."
+                        color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
+                        font.pixelSize: 24; wrapMode: TextEdit.Wrap
+                        leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
+                        background: null
+                    }
                 }
             }
             Label {
