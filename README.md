@@ -109,6 +109,8 @@ Select text and click **Note** (or press **⌘/**) to turn it into a note. A sli
 
 To see them, connect an external display and press **⌥⌘P**: the slides fill the external display and Presenter View opens on the Mac's screen with the current slide, the next one, a slide counter, and your notes. With a single display, presenting shows only the slides.
 
+In a PowerPoint export, notes keep their formatting: `**bold**`, `*italic*`, `` `code` ``, `~~struck~~`, `[links](https://…)`, `-` and `1.` lists, and `#` headings, as well as `<b>`, `<i>`, `<u>`, `<s>`, `<code>` and `<br>`. Each line of a note stays its own line. Presenter View shows notes as written.
+
 ## Add images and video
 
 Paste an image with **⌘V**, drag a file onto the preview, or use **Media**. Media lives beside the Markdown file and is referenced by filename:
