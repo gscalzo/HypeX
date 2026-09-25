@@ -50,7 +50,11 @@ int main(int argc, char **argv) {
     // Commands, exports and help draw no window, so they must not need a display,
     // even where the desktop exports QT_QPA_PLATFORM=wayland.
     // Bare hype prints help, as a command line tool should; launchers say hype open.
+#ifdef Q_OS_MACOS
+    const bool command = (argc == 1 && !launchedAsApp()) || (argc > 1 && isCliCommand(argv[1]));
+#else
     const bool command = argc == 1 || isCliCommand(argv[1]);
+#endif
     bool windowless = command;
     for (int i = 1; i < argc; ++i) {
         const QByteArray argument(argv[i]);

@@ -86,11 +86,28 @@ end
 ```
 ````
 
-Headlines are big, and text is sized to fit the slide, so say less per slide. Lists, quotes, tables, and inline `code` work too, and ordinary line breaks stay visible. Code blocks use syntax highlighting when you name the language. `<!-- comments -->` are hidden from the slide and become speaker notes.
+Headlines are big, and text is sized to fit the slide, so say less per slide. Lists, quotes, tables, and inline `code` work too, and ordinary line breaks stay visible. Code blocks use syntax highlighting when you name the language. `<!-- comments -->` are hidden from the slide and become [presenter notes](#add-presenter-notes).
 
 ![A code slide in the catppuccin theme](docs/screenshots/slide-code.png)
 
 `hype help format` prints the whole format, from front matter to media options; it is the same format as Hype's.
+
+## Add presenter notes
+
+Write notes for a slide in an HTML comment anywhere on that slide. The audience never sees them; Presenter View shows them to you while you present:
+
+```markdown
+# Keep it simple
+
+- Write in Markdown
+- Tell your story
+
+<!-- Pause here. Ask who has given a talk this year. -->
+```
+
+Select text and click **Note** (or press **⌘/**) to turn it into a note. A slide can hold several comments; they appear together, in order. Comments inside code blocks stay code, and comments that begin with `hype` are reserved for layout directives rather than notes. Notes are plain Markdown comments, so Hype on Omarchy shows the same notes from the same file.
+
+To see them, connect an external display and press **⌥⌘P**: the slides fill the external display and Presenter View opens on the Mac's screen with the current slide, the next one, a slide counter, and your notes. With a single display, presenting shows only the slides.
 
 ## Add images and video
 
@@ -142,7 +159,7 @@ Stick to fonts Omarchy installs by default (JetBrains Mono, Noto, iA Writer), or
 
 ## Present and export
 
-Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your speaker notes.
+Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).
 
 **⌘E** exports a PDF. Text stays vector and images keep their full resolution. Export runs in the background while you keep editing.
 

@@ -39,7 +39,7 @@ macx {
     SOURCES += src/filedialog_mac.cpp src/macos.cpp
     HEADERS += src/macos.h
     INCLUDEPATH += /opt/homebrew/include
-    LIBS += -L/opt/homebrew/lib
+    LIBS += -L/opt/homebrew/lib -framework CoreFoundation
     QMAKE_INFO_PLIST = $$PWD/macos/Info.plist
     ICON = $$PWD/macos/HypeX.icns
     themes.files = $$PWD/themes

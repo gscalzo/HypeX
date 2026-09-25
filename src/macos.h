@@ -2,6 +2,9 @@
 class Deck;
 class QString;
 
+// Finder, Spotlight and the Dock start the app with no arguments, which on the
+// command line means "print help"; LaunchServices marks those launches.
+bool launchedAsApp();
 // Make the bundled source-highlight and Homebrew's ffmpeg reachable. Apps opened
 // from Finder inherit only /usr/bin:/bin:/usr/sbin:/sbin.
 void prepareMacEnvironment();

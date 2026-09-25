@@ -4,6 +4,15 @@
 #include <QDir>
 #include <QFileOpenEvent>
 #include <QStringList>
+#include <CoreFoundation/CoreFoundation.h>
+
+bool launchedAsApp() {
+    // A terminal exports its own identifier (com.apple.Terminal, ...) to the shells it starts.
+    const QByteArray launcher = qgetenv("__CFBundleIdentifier");
+    const CFStringRef identifier = CFBundleGetIdentifier(CFBundleGetMainBundle());
+    return identifier && !launcher.isEmpty() &&
+           launcher == QString::fromCFString(identifier).toUtf8();
+}
 
 void prepareMacEnvironment() {
     // The inherited PATH comes first, so a terminal's choices still win.
