@@ -269,7 +269,11 @@ class ExportTests(unittest.TestCase):
         self.export('# Original\n')
         original = self.output.read_bytes()
         self.animation('webp')
-        (self.root / 'tools/ffmpeg').unlink()
+        # A failing ffmpeg, first on the PATH: HypeX.app also searches Homebrew for a missing one.
+        ffmpeg = self.root / 'tools/ffmpeg'
+        ffmpeg.unlink()
+        ffmpeg.write_text('#!/bin/sh\n/bin/cat >/dev/null\necho "ffmpeg: simulated failure" >&2\nexit 1\n')
+        ffmpeg.chmod(0o755)
         result = self.export('![](demo.webp)\n', success=False)
         self.assertIn('Slide 1', result.stderr)
         self.assertIn('ffmpeg', result.stderr)
