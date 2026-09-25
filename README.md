@@ -9,7 +9,7 @@ The presentation is the same Markdown file on both. HypeX is Hype's own code (pa
 ## What's different from Hype
 
 - **Built for macOS.** A native `HypeX.app` with macOS file dialogs, Finder **Open With**, and ⌘ shortcuts.
-- **Export to PDF only.** PowerPoint export is left to Hype on Omarchy.
+- **Export to PDF and PowerPoint.** The same exporters as Hype on Omarchy, with presenter notes carried into PowerPoint.
 - **Omarchy's themes built in.** The 22 stock Omarchy themes ship inside the app, so a deck previews in the theme it will be presented with.
 - **Font check.** `hype check` warns when a deck uses a font that Omarchy doesn't install by default, because text is sized to fit and another font changes the layout.
 - **Two features ahead of Hype.** HypeX includes presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)), both still open upstream. Until #9 is merged, a deck with a `mermaid` block needs a Hype build with that change to show the diagram on Omarchy; stock Hype shows it as a code block.
@@ -161,7 +161,7 @@ Stick to fonts Omarchy installs by default (JetBrains Mono, Noto, iA Writer), or
 
 Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. Presentation remotes work too: they send Page Down and Page Up, which move one slide at a time while presenting. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).
 
-**⌘E** exports a PDF. Text stays vector and images keep their full resolution. Export runs in the background while you keep editing.
+**⌘E** exports a PDF. Text stays vector and images keep their full resolution. **⇧⌘E** exports PowerPoint, as Hype does on Omarchy: each slide is a 4K picture in your theme's colors and font, videos are embedded with their autoplay, loop and mute settings, and animated GIFs and WebPs play as movies that repeat as often as the original. Your [notes](#add-presenter-notes) appear in PowerPoint's Notes pane and Presenter View. Export runs in the background while you keep editing.
 
 ## Use HypeX from the command line
 
@@ -172,7 +172,7 @@ hype new talk/presentation.md --title "My talk" --theme tokyo-night
 hype check talk/presentation.md                   # every problem, with its slide and line
 hype slides talk/presentation.md                  # an outline of the slides
 hype render talk/presentation.md --slide 3 -o slide.png
-hype export talk/presentation.md talk.pdf
+hype export talk/presentation.md talk.pdf         # or talk.pptx
 hype themes
 ```
 
@@ -187,6 +187,7 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | ⌘N / ⌘O | New presentation / open file |
 | ⌘S / ⇧⌘S | Save / save as |
 | ⌘E | Export as PDF |
+| ⇧⌘E | Export as PowerPoint |
 | ⌥⌘P or F5 | Present |
 | Esc | Stop presenting |
 | Space | Play or pause video while presenting |

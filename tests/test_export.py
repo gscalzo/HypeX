@@ -15,11 +15,6 @@ import zlib
 APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/MacOS/HypeX' if sys.platform == 'darwin' else 'build/hype')
 
 
-def setUpModule():
-    if sys.platform == 'darwin':
-        raise unittest.SkipTest('PowerPoint export is not available on macOS')
-
-
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
       'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
@@ -44,8 +39,12 @@ class ExportTests(unittest.TestCase):
         image(self.root / 'images/photo.png')
         tools = self.root / 'tools'
         tools.mkdir()
-        self.app = tools / 'hype'
-        shutil.copy2(APP, self.app)
+        if sys.platform == 'darwin':
+            # HypeX.app finds its Qt frameworks and source-highlight inside the bundle.
+            self.app = APP
+        else:
+            self.app = tools / 'hype'
+            shutil.copy2(APP, self.app)
         for tool in ['ffmpeg', 'ffprobe', 'source-highlight']:
             (tools / tool).symlink_to(shutil.which(tool))
         # The exported application cannot find Python, pip, or an external ZIP tool.
@@ -95,6 +94,34 @@ class ExportTests(unittest.TestCase):
             for name in archive.namelist():
                 if name.endswith(('.xml', '.rels')):
                     ET.fromstring(archive.read(name))
+
+    def test_speaker_notes(self):
+        self.export('<!-- Open with a story & a pause -->\n\n# Hello\n\n<!-- Then:\n- ask a question -->\n'
+                    '\n---\n\n# Quiet\n\n```html\n<!-- code, not a note -->\n```\n')
+        p = '{http://schemas.openxmlformats.org/presentationml/2006/main}'
+        with zipfile.ZipFile(self.output) as archive:
+            names = archive.namelist()
+            self.assertIn('ppt/notesMasters/notesMaster1.xml', names)
+            self.assertIn('ppt/notesSlides/notesSlide1.xml', names)
+            self.assertNotIn('ppt/notesSlides/notesSlide2.xml', names)
+            notes = ET.fromstring(archive.read('ppt/notesSlides/notesSlide1.xml'))
+            body = next(sp for sp in notes.iter(p + 'sp') if sp.find('.//p:ph', NS).get('type') == 'body')
+            paragraphs = [''.join(t.text or '' for t in para.iter('{%s}t' % NS['a']))
+                          for para in body.findall('p:txBody/a:p', NS)]
+            self.assertEqual(paragraphs, ['Open with a story & a pause', '', 'Then:', '- ask a question'])
+            rels = ET.fromstring(archive.read('ppt/slides/_rels/slide1.xml.rels'))
+            self.assertIn('../notesSlides/notesSlide1.xml', [rel.get('Target') for rel in rels])
+            rels = ET.fromstring(archive.read('ppt/notesSlides/_rels/notesSlide1.xml.rels'))
+            self.assertEqual({rel.get('Target') for rel in rels},
+                             {'../notesMasters/notesMaster1.xml', '../slides/slide1.xml'})
+            presentation = ET.fromstring(archive.read('ppt/presentation.xml'))
+            self.assertIsNotNone(presentation.find('p:notesMasterIdLst/p:notesMasterId', NS))
+            types = archive.read('[Content_Types].xml').decode()
+            self.assertIn('/ppt/notesSlides/notesSlide1.xml', types)
+            self.assertIn('/ppt/notesMasters/notesMaster1.xml', types)
+        self.export('# No notes\n')
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertFalse([name for name in archive.namelist() if 'notes' in name])
 
     def test_repeated_movie_is_embedded_once(self):
         self.movie(codec='mpeg4')

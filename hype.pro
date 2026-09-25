@@ -29,8 +29,8 @@ HEADERS += src/cli.h
 SOURCES += src/mermaid.cpp
 HEADERS += src/mermaid.h
 
-# macOS: a self-contained HypeX.app for drafting. PowerPoint export stays compiled
-# but is unavailable; file dialogs are native instead of the desktop portal.
+# macOS: a self-contained HypeX.app. File dialogs are native instead of the
+# desktop portal.
 macx {
     TARGET = HypeX
     QT -= dbus

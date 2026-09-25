@@ -10,8 +10,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QRect>
 #include <QSaveFile>
 #include <QXmlStreamWriter>
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <zlib.h>
@@ -22,6 +24,7 @@ const QString ans = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const QString rns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const QString packageNs = "http://schemas.openxmlformats.org/package/2006/relationships";
 constexpr qint64 slideWidth = 12192000, slideHeight = 6858000;
+constexpr qint64 notesWidth = 6858000, notesHeight = 9144000;
 constexpr quint64 zipLimit = 0xffffffffULL;
 
 // PNG and MP4 are already compressed. Stream each entry, then patch its CRC and
@@ -170,13 +173,28 @@ void shapeTree(Writer &x) {
     x.writeEndElement();
     element(x, "p:grpSpPr");
 }
+void colorMap(Writer &x) {
+    element(x, "p:clrMap",
+            {{"bg1", "lt1"},
+             {"tx1", "dk1"},
+             {"bg2", "lt2"},
+             {"tx2", "dk2"},
+             {"accent1", "accent1"},
+             {"accent2", "accent2"},
+             {"accent3", "accent3"},
+             {"accent4", "accent4"},
+             {"accent5", "accent5"},
+             {"accent6", "accent6"},
+             {"hlink", "hlink"},
+             {"folHlink", "folHlink"}});
+}
 void masterColors(Writer &x) {
     start(x, "p:clrMapOvr");
     element(x, "a:masterClrMapping");
     x.writeEndElement();
 }
 struct PowerPointSlide {
-    QString image, video, poster, overlay;
+    QString image, video, poster, overlay, notes;
     bool autoplay = true, loop = false, muted = false;
     int repeatCount = 1;
     qint64 x = 0, y = 0, width = slideWidth, height = slideHeight;
@@ -326,8 +344,112 @@ QByteArray themeXml() {
     });
 }
 
+// Speaker notes: a notes master that places the slide above the notes, and one
+// notes page per slide that has them, as PowerPoint's Notes pane shows them.
+void notesText(Writer &x, const QString &notes) {
+    start(x, "p:txBody");
+    element(x, "a:bodyPr");
+    element(x, "a:lstStyle");
+    QString clean;
+    for (const QChar c : notes)
+        if (c == '\n' || c == '\t' || c >= QChar(0x20))
+            clean += c;
+    const QStringList lines = clean.isEmpty() ? QStringList{QString()} : clean.split('\n');
+    for (const QString &line : lines) {
+        start(x, "a:p");
+        if (!line.isEmpty()) {
+            start(x, "a:r");
+            element(x, "a:rPr", {{"lang", "en-US"}, {"dirty", "0"}});
+            x.writeTextElement("a:t", line);
+            x.writeEndElement();
+        }
+        x.writeEndElement();
+    }
+    x.writeEndElement();
+}
+void placeholder(Writer &x, int id, const QString &name, const QString &type, const QString &index,
+                 const QRect &bounds = {}, const QString *text = nullptr) {
+    start(x, "p:sp");
+    start(x, "p:nvSpPr");
+    element(x, "p:cNvPr", {{"id", QString::number(id)}, {"name", name}});
+    start(x, "p:cNvSpPr");
+    if (type == "sldImg")
+        element(x, "a:spLocks", {{"noGrp", "1"}, {"noRot", "1"}, {"noChangeAspect", "1"}});
+    else
+        element(x, "a:spLocks", {{"noGrp", "1"}});
+    x.writeEndElement();
+    start(x, "p:nvPr");
+    Attributes ph{{"type", type}};
+    if (!index.isEmpty())
+        ph.append({"idx", index});
+    element(x, "p:ph", ph);
+    x.writeEndElement();
+    x.writeEndElement();
+    start(x, "p:spPr");
+    if (!bounds.isNull()) {
+        start(x, "a:xfrm");
+        element(x, "a:off",
+                {{"x", QString::number(bounds.x())}, {"y", QString::number(bounds.y())}});
+        element(
+            x, "a:ext",
+            {{"cx", QString::number(bounds.width())}, {"cy", QString::number(bounds.height())}});
+        x.writeEndElement();
+        start(x, "a:prstGeom", {{"prst", "rect"}});
+        element(x, "a:avLst");
+        x.writeEndElement();
+    }
+    x.writeEndElement();
+    if (text)
+        notesText(x, *text);
+    x.writeEndElement();
+}
+QByteArray notesMasterXml() {
+    return xml([](Writer &x) {
+        presentationRoot(x, "p:notesMaster");
+        start(x, "p:cSld");
+        shapeTree(x);
+        // A 16:9 slide across the top of a portrait page, notes below it.
+        const qint64 imageWidth = notesWidth * 8 / 9, imageHeight = imageWidth * 9 / 16;
+        placeholder(x, 2, "Slide Image", "sldImg", "2",
+                    QRect(int((notesWidth - imageWidth) / 2), int(notesHeight / 12),
+                          int(imageWidth), int(imageHeight)));
+        const qint64 top = notesHeight / 12 + imageHeight + notesHeight / 24;
+        placeholder(x, 3, "Notes Placeholder", "body", "3",
+                    QRect(int(notesWidth / 10), int(top), int(notesWidth * 8 / 10),
+                          int(notesHeight - top - notesHeight / 12)));
+        x.writeEndElement();
+        x.writeEndElement();
+        colorMap(x);
+        start(x, "p:notesStyle");
+        start(x, "a:lvl1pPr", {{"marL", "0"}, {"algn", "l"}});
+        start(x, "a:defRPr", {{"sz", "1200"}});
+        start(x, "a:solidFill");
+        element(x, "a:schemeClr", {{"val", "tx1"}});
+        x.writeEndElement();
+        element(x, "a:latin", {{"typeface", "+mn-lt"}});
+        x.writeEndElement();
+        x.writeEndElement();
+        x.writeEndElement();
+        x.writeEndElement();
+    });
+}
+QByteArray notesSlideXml(const QString &notes) {
+    return xml([&](Writer &x) {
+        presentationRoot(x, "p:notes");
+        start(x, "p:cSld");
+        shapeTree(x);
+        placeholder(x, 2, "Slide Image", "sldImg", "");
+        placeholder(x, 3, "Notes Placeholder", "body", "1", {}, &notes);
+        x.writeEndElement();
+        x.writeEndElement();
+        masterColors(x);
+        x.writeEndElement();
+    });
+}
+
 bool readSlide(const QJsonObject &entry, const QDir &base, PowerPointSlide &slide, QString &error) {
     slide.image = base.filePath(entry["image"].toString());
+    slide.notes = entry["notes"].toString().trimmed();
     auto checkImage = [&](const QString &path) {
         // Check contents rather than relying on a filename extension.
         QImageReader reader(path);
@@ -496,6 +618,10 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
     }
     if (slides.isEmpty())
         return fail("There are no slides to export.");
+    const bool notes =
+        std::any_of(slides.cbegin(), slides.cend(),
+                    [](const PowerPointSlide &slide) { return !slide.notes.isEmpty(); });
+    const QString notesMasterId = "rId" + QString::number(slides.size() + 2);
     if (!QDir().mkpath(QFileInfo(destination).absolutePath()))
         return fail("Cannot create the export directory.");
     Zip zip(destination);
@@ -522,6 +648,11 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
             start(x, "p:sldMasterIdLst");
             element(x, "p:sldMasterId", {{"id", "2147483648"}, {"r:id", "rId1"}});
             x.writeEndElement();
+            if (notes) {
+                start(x, "p:notesMasterIdLst");
+                element(x, "p:notesMasterId", {{"r:id", notesMasterId}});
+                x.writeEndElement();
+            }
             start(x, "p:sldIdLst");
             for (int i = 0; i < slides.size(); ++i)
                 element(
@@ -532,13 +663,21 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
                     {{"cx", QString::number(slideWidth)},
                      {"cy", QString::number(slideHeight)},
                      {"type", "screen16x9"}});
-            element(x, "p:notesSz", {{"cx", "6858000"}, {"cy", "9144000"}});
+            element(x, "p:notesSz",
+                    {{"cx", QString::number(notesWidth)}, {"cy", QString::number(notesHeight)}});
             x.writeEndElement();
         }));
     QList<Relationship> presentationRels{{"rId1", "slideMaster", "slideMasters/slideMaster1.xml"}};
     for (int i = 0; i < slides.size(); ++i)
         presentationRels.append({"rId" + QString::number(i + 2), "slide",
                                  "slides/slide" + QString::number(i + 1) + ".xml"});
+    if (notes) {
+        presentationRels.append({notesMasterId, "notesMaster", "notesMasters/notesMaster1.xml"});
+        put("ppt/notesMasters/notesMaster1.xml", notesMasterXml());
+        put("ppt/notesMasters/_rels/notesMaster1.xml.rels",
+            relationships({{"rId1", "theme", "../theme/theme2.xml"}}));
+        put("ppt/theme/theme2.xml", themeXml());
+    }
     put("ppt/_rels/presentation.xml.rels", relationships(presentationRels));
     put("ppt/slideMasters/slideMaster1.xml", xml([](Writer &x) {
             presentationRoot(x, "p:sldMaster");
@@ -546,19 +685,7 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
             shapeTree(x);
             x.writeEndElement();
             x.writeEndElement();
-            element(x, "p:clrMap",
-                    {{"bg1", "lt1"},
-                     {"tx1", "dk1"},
-                     {"bg2", "lt2"},
-                     {"tx2", "dk2"},
-                     {"accent1", "accent1"},
-                     {"accent2", "accent2"},
-                     {"accent3", "accent3"},
-                     {"accent4", "accent4"},
-                     {"accent5", "accent5"},
-                     {"accent6", "accent6"},
-                     {"hlink", "hlink"},
-                     {"folHlink", "folHlink"}});
+            colorMap(x);
             start(x, "p:sldLayoutIdLst");
             element(x, "p:sldLayoutId", {{"id", "2147483649"}, {"r:id", "rId1"}});
             x.writeEndElement();
@@ -621,6 +748,13 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
             if (!slide.overlay.isEmpty())
                 rels.append({"rId6", "image", media(slide.overlay, "overlay" + number)});
         }
+        if (!slide.notes.isEmpty()) {
+            rels.append({"rId7", "notesSlide", "../notesSlides/notesSlide" + number + ".xml"});
+            put("ppt/notesSlides/notesSlide" + number + ".xml", notesSlideXml(slide.notes));
+            put("ppt/notesSlides/_rels/notesSlide" + number + ".xml.rels",
+                relationships({{"rId1", "notesMaster", "../notesMasters/notesMaster1.xml"},
+                               {"rId2", "slide", "../slides/slide" + number + ".xml"}}));
+        }
         put("ppt/slides/slide" + number + ".xml", slideXml(slide));
         put("ppt/slides/_rels/slide" + number + ".xml.rels", relationships(rels));
     }
@@ -647,6 +781,15 @@ bool writePptx(const QString &manifestPath, const QString &destination, QString 
             for (int i = 0; i < slides.size(); ++i)
                 part("/ppt/slides/slide" + QString::number(i + 1) + ".xml",
                      prefix + "presentationml.slide+xml");
+            if (notes) {
+                part("/ppt/notesMasters/notesMaster1.xml",
+                     prefix + "presentationml.notesMaster+xml");
+                part("/ppt/theme/theme2.xml", prefix + "theme+xml");
+            }
+            for (int i = 0; i < slides.size(); ++i)
+                if (!slides[i].notes.isEmpty())
+                    part("/ppt/notesSlides/notesSlide" + QString::number(i + 1) + ".xml",
+                         prefix + "presentationml.notesSlide+xml");
             x.writeEndElement();
         }));
     return zip.finish() || fail(zip.error);

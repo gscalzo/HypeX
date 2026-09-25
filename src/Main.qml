@@ -624,7 +624,7 @@ ApplicationWindow {
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: [StandardKey.Save]; onActivated: deck.save() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: [StandardKey.SaveAs]; onActivated: deck.saveAs() }
     Shortcut { sequence: "Ctrl+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pdf") }
-    Shortcut { sequence: "Ctrl+Shift+E"; enabled: MacKeys.pptx && !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pptx") }
+    Shortcut { sequence: "Ctrl+Shift+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pptx") }
     Shortcut { sequences: ["?", "Shift+?"]; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: shortcutsOverlay.open() }
     Shortcut { sequence: "F1"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting; onActivated: shortcutsOverlay.open() }
     Shortcut { sequence: MacKeys.overview; enabled: !win.popupOpen && !deck.compressingImage && (!win.presenting); onActivated: win.toggleOverview() }
@@ -1000,7 +1000,7 @@ ApplicationWindow {
                     AppMenuItem { text: "Save as…"; hint: "Ctrl+Shift+S"; onTriggered: deck.saveAs() }
                     AppMenuSeparator {}
                     AppMenuItem { text: "Export as PDF…"; hint: "Ctrl+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pdf") }
-                    AppMenuItem { text: "Export as PowerPoint…"; hint: "Ctrl+Shift+E"; visible: MacKeys.pptx; height: visible ? implicitHeight : 0; enabled: !deck.exporting; onTriggered: deck.exportDialog("pptx") }
+                    AppMenuItem { text: "Export as PowerPoint…"; hint: "Ctrl+Shift+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pptx") }
                     AppMenuSeparator {}
                     AppMenuItem { text: "Version history…"; onTriggered: historyDialog.open() }
                 }
@@ -1053,7 +1053,7 @@ ApplicationWindow {
                         Layout.alignment: Qt.AlignTop; spacing: 7
                         Label { text: modelData.title.toUpperCase(); font.pixelSize: 11; font.letterSpacing: 1; color: win.ui.accent; Layout.bottomMargin: 2 }
                         Repeater {
-                            model: modelData.keys.filter(MacKeys.available)
+                            model: modelData.keys
                             RowLayout {
                                 required property var modelData
                                 spacing: 14

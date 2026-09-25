@@ -1273,11 +1273,6 @@ class HypeTests : public QObject {
         const QString pptxPath = tmp.path() + "/talk.pptx";
         deck.startExport("pptx", pptxPath);
         QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 2, 15000);
-#ifdef Q_OS_MACOS
-        QVERIFY(!finished.last()[0].toBool());
-        QVERIFY(!QFile::exists(pptxPath));
-        QSKIP("PowerPoint export is not available on macOS");
-#endif
         QVERIFY(finished.last()[0].toBool());
         QFile pptx(pptxPath);
         QVERIFY(pptx.open(QIODevice::ReadOnly));
