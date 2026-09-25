@@ -9,7 +9,13 @@ import "MacKeys.js" as MacKeys
 
 ApplicationWindow {
     id: win
-    onVisibilityChanged: function(visibility) { console.info("[HypeX] slides window visibility: " + visibility + " on '" + (screen ? screen.name : "?") + "' " + x + "," + y + " " + width + "x" + height) }
+    onVisibilityChanged: function(visibility) {
+        console.info("[HypeX] slides window visibility: " + visibility + " on '" + (screen ? screen.name : "?") + "' " + x + "," + y + " " + width + "x" + height)
+        if (restoringEditor && visibility === Window.Windowed) {
+            restoringEditor = false
+            Qt.callLater(restoreEditor)
+        }
+    }
     onScreenChanged: console.info("[HypeX] slides window screen: '" + (screen ? screen.name : "?") + "'")
     width: 1400; height: 900; minimumWidth: 900; minimumHeight: 600
     visible: true
@@ -91,24 +97,35 @@ ApplicationWindow {
         } else {
             presenterWindow.hide()
             player.stop()
+            // macOS puts a window back where it was just before full screen, on the
+            // audience display, once it has left full screen: restore after that.
+            if (MacKeys.mac && win.visibility === Window.FullScreen) {
+                restoringEditor = true
+                win.showNormal()
+                return
+            }
             // Wayland compositors retain a fullscreen window's output when it is
             // normalized. Take it off-screen first so the saved editor output and
             // geometry are applied before the window is mapped again.
             win.hide()
-            if (presentationReturnScreen) win.screen = presentationReturnScreen
-            if (presentationReturnGeometry.width > 0) {
-                win.x = presentationReturnGeometry.x
-                win.y = presentationReturnGeometry.y
-                win.width = presentationReturnGeometry.width
-                win.height = presentationReturnGeometry.height
-            }
-            if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
-            else win.showNormal()
-            Qt.callLater(function() {
-                win.requestActivate()
-                stage.forceActiveFocus()
-            })
+            restoreEditor()
         }
+    }
+    property bool restoringEditor: false
+    function restoreEditor() {
+        if (presentationReturnScreen) win.screen = presentationReturnScreen
+        if (presentationReturnGeometry.width > 0) {
+            win.x = presentationReturnGeometry.x
+            win.y = presentationReturnGeometry.y
+            win.width = presentationReturnGeometry.width
+            win.height = presentationReturnGeometry.height
+        }
+        if (presentationReturnVisibility === Window.Maximized) win.showMaximized()
+        else win.showNormal()
+        Qt.callLater(function() {
+            win.requestActivate()
+            stage.forceActiveFocus()
+        })
     }
     function moveOnto(window, screen) {
         window.screen = screen

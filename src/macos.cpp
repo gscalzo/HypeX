@@ -96,15 +96,19 @@ class KeyLog : public QObject {
   public:
     using QObject::QObject;
     bool eventFilter(QObject *object, QEvent *event) override {
-        // Windows see every key once, before Shortcuts or items handle it.
+        // Windows see every key once, before Shortcuts or items handle it. Only keys
+        // without text (arrows, pages, Escape, what remotes send) and shortcuts are
+        // logged, never what is typed.
         if ((event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) &&
             object->isWindowType()) {
             const auto *key = static_cast<QKeyEvent *>(event);
-            qInfo("[HypeX] key %s: key=0x%x text='%s' modifiers=0x%x native=0x%x%s window='%s'",
-                  event->type() == QEvent::KeyPress ? "press" : "override", key->key(),
-                  qPrintable(key->text().toHtmlEscaped()), uint(key->modifiers()),
-                  key->nativeVirtualKey(), key->isAutoRepeat() ? " repeat" : "",
-                  qPrintable(static_cast<QWindow *>(object)->title()));
+            const bool typed = key->key() < Qt::Key_Escape &&
+                               !(key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier));
+            if (!typed)
+                qInfo("[HypeX] key %s: key=0x%x modifiers=0x%x native=0x%x%s window='%s'",
+                      event->type() == QEvent::KeyPress ? "press" : "override", key->key(),
+                      uint(key->modifiers()), key->nativeVirtualKey(), key->isAutoRepeat() ? " repeat" : "",
+                      qPrintable(static_cast<QWindow *>(object)->title()));
         }
         return QObject::eventFilter(object, event);
     }

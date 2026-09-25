@@ -220,6 +220,8 @@ python3 -m unittest tests.test_cli tests.test_shutdown tests.test_export
 bin/sync-themes                 # refresh the bundled Omarchy themes
 ```
 
+When something misbehaves, `~/Library/Logs/HypeX/hypex.log` (also in Console.app) records the displays, window placement, slide changes and navigation keys of the last session; it never records what you type.
+
 The macOS changes are small and sit behind `Q_OS_MACOS` and `macx {}`, so the same code still builds Hype on Linux. CI builds and tests both. A weekly workflow merges new Hype releases into a pull request, or opens an issue when they conflict. HypeX bundles md4c 0.5.3, because Homebrew's Qt was built against it and md4c 0.6 makes Qt drop `_underline_`.
 
 ## Credits
