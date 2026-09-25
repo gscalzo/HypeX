@@ -31,6 +31,7 @@ Differences from Omarchy:
 
 - PDF export only. PowerPoint export is Omarchy's job.
 - ⌘ replaces Ctrl, except where macOS owns the key: present with **⌥⌘P** or F5, headline with **⌘1**, overview with **⌘0**, and delete slides with **⌫**. Press **?** for the full list.
+- This fork also carries two changes still open upstream: presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)). A deck with a `mermaid` block needs this fork on Omarchy too until #9 is merged; stock Hype shows it as a code block.
 - `hype check` warns when a deck's font isn't installed on Omarchy by default (JetBrains Mono, Noto, iA Writer), since text is sized to fit and another font changes the layout.
 
 ## Make a presentation
@@ -147,6 +148,25 @@ For videos, choose **Background → Blurred first frame**, or write `![fit backg
 Animated WebP and GIF images play inline in the preview and while presenting. Use the usual image syntax, such as `![](demo.webp)`, with the file in `images/`. Space pauses or resumes animations while presenting; PowerPoint exports automatically convert them to embedded MP4 videos, preserving the slide layout and playback settings. PDF exports capture their first frame.
 
 Each slide supports one image or video. Copy the whole presentation folder when sharing or moving it.
+
+## Draw diagrams
+
+A `mermaid` code block draws a [Mermaid](https://mermaid.js.org) flowchart in your theme’s colors and font. It takes the place of a slide’s image, so a headline above it gets a band at the top:
+
+````markdown
+# How a request flows
+
+```mermaid
+flowchart LR
+  Browser --> lb[Load balancer]
+  subgraph app [App servers]
+    web1[Rails] & web2[Rails]
+  end
+  lb --> web1 & web2 --> db[(Postgres)]
+```
+````
+
+Hype draws flowcharts itself, with no browser or Node.js involved. It supports every direction (`TD`, `LR`, `BT`, `RL`), the node shapes, solid, dotted, thick, and invisible links with arrow, circle, and cross ends, link labels, nested subgraphs with their own `direction` (as in Mermaid, a subgraph follows the diagram’s direction when links reach inside it from outside), and `classDef`, `class`, and `style` colors. Other Mermaid diagram types, like sequence diagrams, show an error on the slide for now. Diagrams stay sharp in PDF. See [examples/diagrams.md](examples/diagrams.md) for more.
 
 ## Choose your look
 
