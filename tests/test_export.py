@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 import zlib
 
-APP = Path(__file__).resolve().parents[1] / ('build-macos/Hype.app/Contents/MacOS/Hype' if sys.platform == 'darwin' else 'build/hype')
+APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/MacOS/HypeX' if sys.platform == 'darwin' else 'build/hype')
 
 
 def setUpModule():

@@ -4,6 +4,9 @@
 // Elsewhere every function returns its input, so Linux is untouched.
 var mac = Qt.platform.os === "osx"
 
+// The macOS port is HypeX; its files and commands keep Hype's names.
+var appName = mac ? "HypeX" : "Hype"
+
 // Shortcut sequences, as QML Shortcut expects them.
 var present = mac ? ["F5", "Ctrl+Alt+P"] : ["F5", "Ctrl+Space"]
 var headline = mac ? "Ctrl+1" : "Ctrl+H"
@@ -20,6 +23,7 @@ function label(text) {
         .replace(/Ctrl\+H\b/g, "⌘1")
         .replace(/Ctrl\+M\b/g, "⌘0")
         .replace(/^(Delete|Del)$/, "⌫")
+        .replace(/^Enter$/, "Return")
         .replace(/Ctrl\+Shift\+/g, "⇧⌘")
         .replace(/Ctrl\+/g, "⌘")
         .replace(/Shift\+/g, "⇧")

@@ -9,11 +9,11 @@
     <key>CFBundleIconFile</key>
     <string>${ASSETCATALOG_COMPILER_APPICON_NAME}</string>
     <key>CFBundleIdentifier</key>
-    <string>com.gscalzo.hype</string>
+    <string>com.gscalzo.hypex</string>
     <key>CFBundleName</key>
-    <string>Hype</string>
+    <string>HypeX</string>
     <key>CFBundleDisplayName</key>
-    <string>Hype</string>
+    <string>HypeX</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

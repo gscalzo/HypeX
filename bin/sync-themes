@@ -1,5 +1,5 @@
 #!/bin/sh
-# Snapshot the stock Omarchy themes' colors into themes/, bundled into Hype.app on macOS.
+# Snapshot the stock Omarchy themes' colors into themes/, bundled into HypeX.app on macOS.
 # Run it again whenever Omarchy adds or changes themes, then commit the result.
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"

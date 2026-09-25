@@ -29,10 +29,10 @@ HEADERS += src/cli.h
 SOURCES += src/mermaid.cpp
 HEADERS += src/mermaid.h
 
-# macOS: a self-contained Hype.app for drafting. PowerPoint export stays compiled
+# macOS: a self-contained HypeX.app for drafting. PowerPoint export stays compiled
 # but is unavailable; file dialogs are native instead of the desktop portal.
 macx {
-    TARGET = Hype
+    TARGET = HypeX
     QT -= dbus
     QT += widgets
     SOURCES -= src/filedialog.cpp
@@ -41,7 +41,7 @@ macx {
     INCLUDEPATH += /opt/homebrew/include
     LIBS += -L/opt/homebrew/lib
     QMAKE_INFO_PLIST = $$PWD/macos/Info.plist
-    ICON = $$PWD/macos/Hype.icns
+    ICON = $$PWD/macos/HypeX.icns
     themes.files = $$PWD/themes
     themes.path = Contents/Resources
     QMAKE_BUNDLE_DATA += themes

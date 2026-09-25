@@ -1,62 +1,64 @@
-# Hype
+# HypeX
 
-Simple presentations, written in Markdown. Big headlines, images, video, and code—with a visual editor to put everything in order.
+**HypeX is a port of [Hype](https://github.com/omacom/hype) to macOS.** Hype is the Markdown presentation app for [Omarchy](https://omarchy.org); HypeX brings the same editor to the Mac so you can draft your slides there, then present them with Hype on Omarchy.
 
-Hype is a native app for Omarchy. Your presentation is a Markdown file with its media alongside it. Choose an installed Omarchy theme, pick a font, and export to PDF or PowerPoint.
+The presentation is the same Markdown file on both. HypeX is Hype's own code (parser, renderer, editor) built for macOS, not a reimplementation, so a deck drafted on the Mac is the deck Hype reads on Omarchy. A round-trip test holds it to that: opening, editing and saving a deck in HypeX leaves the file byte-identical.
+
+![HypeX editing a slide with a Mermaid diagram](docs/screenshots/visual.png)
+
+## What's different from Hype
+
+- **Built for macOS.** A native `HypeX.app` with macOS file dialogs, Finder **Open With**, and ⌘ shortcuts.
+- **Export to PDF only.** PowerPoint export is left to Hype on Omarchy.
+- **Omarchy's themes built in.** The 22 stock Omarchy themes ship inside the app, so a deck previews in the theme it will be presented with.
+- **Font check.** `hype check` warns when a deck uses a font that Omarchy doesn't install by default, because text is sized to fit and another font changes the layout.
+- **Two features ahead of Hype.** HypeX includes presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)), both still open upstream. Until #9 is merged, a deck with a `mermaid` block needs a Hype build with that change to show the diagram on Omarchy; stock Hype shows it as a code block.
 
 ## Install
 
-Install Hype from the [Omarchy Package Repository (OPR)](https://github.com/omacom/omarchy-pkgs):
+HypeX builds on an Apple silicon Mac with [Homebrew](https://brew.sh), against the libraries Homebrew installs for your version of macOS. The [Brewfile](Brewfile) lists everything it needs: Qt, source-highlight, ffmpeg, webp, dylibbundler, and the JetBrains Mono fonts Omarchy uses.
 
 ```sh
-omarchy pkg add hype
-```
-
-Then open **Hype** from the app launcher, or run `hype` in a terminal.
-
-## Draft on macOS
-
-This fork builds Hype for macOS, for drafting decks that you then present or export from Omarchy. The Markdown is the same file: Hype's own parser and renderer run on both, and a round-trip test checks that opening, editing and saving on macOS leaves a deck byte-identical.
-
-Requirements are in the [Brewfile](Brewfile): Qt, source-highlight, ffmpeg, webp, dylibbundler, and the JetBrains Mono fonts Omarchy uses.
-
-```sh
+git clone https://github.com/gscalzo/HypeX.git
+cd HypeX
 brew bundle
-bin/install-macos     # builds Hype.app, copies it to /Applications, installs the hype command
+bin/install-macos
 ```
 
-`bin/build-macos` builds `build-macos/Hype.app` without installing it. The app bundles Qt, source-highlight and the stock Omarchy themes (refresh them with `bin/sync-themes`); videos use Homebrew's ffmpeg. Open decks from Hype, with Finder's **Open With**, or by dropping them on the Dock icon.
+`bin/install-macos` builds `HypeX.app`, copies it to `/Applications`, and installs the `hype` command in Homebrew's `bin`. Open **HypeX** from Spotlight or Launchpad, choose **Open With → HypeX** on a Markdown file in Finder, drop a file on the Dock icon, or run `hype open` in a terminal.
 
-Differences from Omarchy:
-
-- PDF export only. PowerPoint export is Omarchy's job.
-- ⌘ replaces Ctrl, except where macOS owns the key: present with **⌥⌘P** or F5, headline with **⌘1**, overview with **⌘0**, and delete slides with **⌫**. Press **?** for the full list.
-- This fork also carries two changes still open upstream: presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)). A deck with a `mermaid` block needs this fork on Omarchy too until #9 is merged; stock Hype shows it as a code block.
-- `hype check` warns when a deck's font isn't installed on Omarchy by default (JetBrains Mono, Noto, iA Writer), since text is sized to fit and another font changes the layout.
+The app bundles Qt, source-highlight and the themes, and uses Homebrew's ffmpeg for video frames. It is ad-hoc signed for your own Mac, not notarized. `bin/build-macos` builds `build-macos/HypeX.app` without installing it.
 
 ## Make a presentation
 
-Open Hype from your app launcher. It reopens your last presentation; use **Ctrl+N** to start a new one, or **Ctrl+O** to choose a Markdown file.
+HypeX reopens your last presentation; use **⌘N** to start a new one, or **⌘O** to choose a Markdown file.
 
-In **Visual** mode, select a slide in the sidebar and write its Markdown below the preview. Changes appear as you type. Drag the divider to give the preview or editor more room. The mode button shows the current mode as a grid, slide, or `#` icon; click it to step through **Overview**, **Visual**, and **Markdown**. **Ctrl+M** flips the overview on and off, returning to the mode you came from, and **Ctrl+.** flips the Markdown source. Markdown mode edits the whole presentation, with the same formatting bar on top.
+In **Visual** mode, select a slide in the sidebar and write its Markdown below the preview. Changes appear as you type. Drag the divider to give the preview or editor more room. The mode button steps through **Overview**, **Visual**, and **Markdown**; **⌘0** flips the overview on and off, and **⌘.** flips the Markdown source.
 
-**Overview** mode fills the window with a grid of every slide. Select, rearrange, duplicate, and delete slides there as you would in the sidebar; the up and down arrows move by a row. Double-click a slide or press **Enter** to open it in Visual mode.
+**Overview** fills the window with every slide. Select, rearrange, duplicate, and delete slides there as you would in the sidebar. Double-click a slide or press **Return** to open it.
 
-The buttons above the editor apply bold, italic, underline, headlines, code blocks, and hidden comments to your selection. Hype reads `*asterisks*` as italic and `_underscores_` as underline. **Media** adds an image or video; **Layout** opens its layout and background options.
+![Overview of every slide](docs/screenshots/overview.png)
 
-Use **Ctrl+Enter** or right-click a slide to add a slide after the selection. Drag slides to rearrange them—their Markdown moves with them. Hold a dragged slide near the top or bottom of the sidebar or overview to scroll further. Select several slides with **Shift+click** or **Shift+arrows** to move, duplicate, or delete them together.
+**Markdown** mode edits the whole presentation at once, with the same formatting bar on top.
 
-Hype saves automatically after a one-second typing pause, or every five seconds while you keep typing. Use **Ctrl+S** to choose a file for a new presentation or save immediately. Hype remembers the last directory you opened or saved to.
+![Editing the whole presentation as Markdown](docs/screenshots/markdown.png)
 
-Every saved version stays in `.hype-backups/` beside your presentation. Hype also keeps local recovery snapshots, including unfinished Markdown and unnamed presentations, and restores your latest draft when you reopen after a crash. Choose **Version history** from the file menu in the top bar to restore an earlier snapshot; your current version remains available there too. Recovery snapshots contain Markdown and slide boundaries, not copies of images or videos. Unfinished code fences are backed up without replacing the last valid presentation file. Finish them before exporting; Hype checks that every slide will be preserved.
+The buttons above the editor apply bold, italic, underline, headlines, code blocks, and hidden notes to your selection. `*asterisks*` are italic and `_underscores_` are underline. **Media** adds an image or video; **Layout** opens its layout and background options.
 
-Local recovery snapshots live in `~/.local/state/hype/recovery/` (under `$XDG_STATE_HOME` if set). You can also recover a `.hype-backups/` version manually: copy its `.bak` file to a new `.md` file and open it.
+Use **⌘Return** or right-click a slide to add one after the selection. Drag slides to rearrange them, or select several with **⇧-click** or **⇧-arrows** to move, duplicate, or delete them together.
+
+HypeX saves automatically after a one-second pause, or every five seconds while you keep typing. **⌘S** saves immediately or names a new presentation. Every saved version stays in `.hype-backups/` beside your presentation, and **Version history** in the file menu restores earlier snapshots, including ones recovered after a crash.
 
 ## Write your slides
 
 Separate slides with `---`, with a blank line on either side:
 
 ````markdown
+---
+title: "My talk"
+theme: "catppuccin"
+---
+
 # A big idea
 
 ---
@@ -75,8 +77,6 @@ Separate slides with `---`, with a blank line on either side:
 
 ---
 
-# Show the code
-
 ```ruby
 class Presentation
   def next_slide
@@ -86,178 +86,125 @@ end
 ```
 ````
 
-Headlines are big by default. Quotes, lists, tables, and inline `code` work too. Ordinary line breaks stay visible on the slide. Code blocks fit the slide and use syntax highlighting when you specify a language, such as `ruby`, `rust`, `javascript`, `bash`, or `json`.
+Headlines are big, and text is sized to fit the slide, so say less per slide. Lists, quotes, tables, and inline `code` work too, and ordinary line breaks stay visible. Code blocks use syntax highlighting when you name the language. `<!-- comments -->` are hidden from the slide and become speaker notes.
 
-The single-slide editor hides the blank lines around slide separators, leaving just your content to edit.
+![A code slide in the catppuccin theme](docs/screenshots/slide-code.png)
+
+`hype help format` prints the whole format, from front matter to media options; it is the same format as Hype's.
 
 ## Add images and video
 
-Paste an image or a copied image/video file with **Ctrl+V**. Hype asks for a name, saves the file, and adds it to the selected slide. Pasting onto a slide that already has media replaces that media while keeping the text. You can also drag a file onto the preview or use **+ Image / video** to replace the media. Dropping several files puts each additional file on a new slide.
-
-Pasted still images are sized for a 4K slide without upscaling. Fitted images stay within 3840 × 2160; spanning images retain enough resolution to fill that area without discarding the parts outside the crop. Hype chooses a lossless PNG or WebP, keeping an existing file when it is already smaller and needs no resizing. Original files, videos, animated images, and SVGs are left intact.
-
-Compression runs in the background. If it takes longer than a second, a progress bar appears over the slide; you can cancel the paste or wait for the filename prompt.
-
-Media lives beside the Markdown file:
+Paste an image with **⌘V**, drag a file onto the preview, or use **Media**. Media lives beside the Markdown file and is referenced by filename:
 
 ```text
 my-talk/
   presentation.md
   images/
-    city.jpg
     diagram.png
   videos/
     demo.mp4
 ```
 
-Use just the filename; Hype finds the right directory:
-
-```markdown
-![](diagram.png)
-
----
-
-![](city.jpg)
-
-# A headline over a background
-
----
-
-![](demo.mp4)
-```
-
-A lone image fits without cropping. Text on an image slide is always overlaid, with white lettering, subtle darkening, and a very light blur of the picture for readability. The text stays sharp, and pictures without text stay unblurred. An image with a headline spans by default; `fit` or `background=blur` keeps the whole image visible beneath the text. Videos fit the slide and play once when you reach them during a presentation.
-
-Choose **Fit** or **Span** from the **Layout** menu above the editor, or put layout options inside the brackets:
-
 | Markdown | Result |
 | --- | --- |
-| `![fit](photo.jpg)` | Show the whole image, with text overlaid |
+| `![](diagram.png)` | Show the whole image |
 | `![span](photo.jpg)` | Fill the slide, cropping as needed |
+| `![fit](photo.jpg)` | Show the whole image, with any text overlaid |
+| `![fit background=#ffffff](diagram.png)` | Fill the space around it with a color |
+| `![fit background=blur](portrait.jpg)` | Fill it with a blurred copy of the image |
+| `![overlay=0.5](photo.jpg)` | Darken the picture behind text, from 0 to 1 |
 | `![loop muted](demo.mp4)` | Loop a video without sound |
 | `![autoplay=false](demo.mp4)` | Wait for Space to play the video |
 
-For images that leave space around them, Hype matches the background to the image’s edge color when possible. Choose **White**, **Black**, or **Use theme color** from the **Layout** menu to override it, or specify any color: `![fit background=#ffffff](diagram.png)`. Choosing White or Black also switches spanning media to fit so the background is visible.
-
-Choose **Background → Blurred image** to fill the slide with a stretched, blurred copy behind the sharp fitted image: `![fit background=blur](portrait.jpg)`. The same background appears in PDF and PowerPoint exports. Animated images use their first frame for the blurred background.
-
-For videos, choose **Background → Blurred first frame**, or write `![fit background=blur](portrait.mp4)`. The video plays over a still blur of its first frame, even when you specify a different poster image. Choosing blur also switches spanning media to fit so the background is visible.
-
-**Background → Match image edges** also works with videos: `![fit background=auto](portrait.mp4)`. It samples the edges of the first frame and keeps that background color during playback, even with a custom poster. Selecting it switches spanning videos to fit.
-
-Animated WebP and GIF images play inline in the preview and while presenting. Use the usual image syntax, such as `![](demo.webp)`, with the file in `images/`. Space pauses or resumes animations while presenting; PowerPoint exports automatically convert them to embedded MP4 videos, preserving the slide layout and playback settings. PDF exports capture their first frame.
-
-Each slide supports one image or video. Copy the whole presentation folder when sharing or moving it.
+Each slide takes one image or video. Copy the whole presentation folder when moving it to Omarchy.
 
 ## Draw diagrams
 
-A `mermaid` code block draws a [Mermaid](https://mermaid.js.org) flowchart in your theme’s colors and font. It takes the place of a slide’s image, so a headline above it gets a band at the top:
+A `mermaid` code block draws a [Mermaid](https://mermaid.js.org) flowchart in your theme's colors and font, in place of the slide's image:
 
 ````markdown
 # How a request flows
 
 ```mermaid
 flowchart LR
-  Browser --> lb[Load balancer]
-  subgraph app [App servers]
-    web1[Rails] & web2[Rails]
-  end
-  lb --> web1 & web2 --> db[(Postgres)]
+  user((User)) --> lb[Load balancer]
+  lb --> web1[Rails] & web2[Rails] --> db[(Postgres)]
 ```
 ````
 
-Hype draws flowcharts itself, with no browser or Node.js involved. It supports every direction (`TD`, `LR`, `BT`, `RL`), the node shapes, solid, dotted, thick, and invisible links with arrow, circle, and cross ends, link labels, nested subgraphs with their own `direction` (as in Mermaid, a subgraph follows the diagram’s direction when links reach inside it from outside), and `classDef`, `class`, and `style` colors. Other Mermaid diagram types, like sequence diagrams, show an error on the slide for now. Diagrams stay sharp in PDF. See [examples/diagrams.md](examples/diagrams.md) for more.
+Diagrams are drawn natively, with no browser involved, and stay sharp in PDF. See [examples/diagrams.md](examples/diagrams.md) for more.
 
 ## Choose your look
 
-The palette and font icons in the toolbar choose an installed Omarchy theme and a presentation font. Hover to see the current choices. Theme colors apply to text, code, and slide backgrounds; your images keep their original colors. Code stays monospaced. Hype’s interface follows your current desktop theme independently and updates when you change it.
+The palette and font icons in the toolbar choose a theme and a presentation font. Every stock Omarchy theme is built in, and themes you add under `~/.config/omarchy/themes/` take precedence. Colors and the font are saved in the Markdown file, so the deck looks the same on Omarchy.
 
-The header shows the presentation's name with your position in it, such as “Slide 4 of 45”; saving and exporting report their progress on that line. The file icon beside it holds New, Open, Save, Export, and Version history, and is highlighted when you have unsaved changes.
-
-Colors and the font choice are saved in the Markdown file. Install the same font on another computer to keep the typography consistent.
+Stick to fonts Omarchy installs by default (JetBrains Mono, Noto, iA Writer), or install the same font on both machines. `hype check` warns about any other.
 
 ## Present and export
 
-Click **Present** or press **Ctrl+Space** (or **F5**) to toggle fullscreen presentation. Use the arrows to navigate, Space to play or pause video, and Escape to return to editing.
+Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your speaker notes.
 
-Finished videos hold their last frame. Press Space again to replay from the beginning.
+**⌘E** exports a PDF. Text stays vector and images keep their full resolution. Export runs in the background while you keep editing.
 
-Choose **Export as PDF** or **Export as PowerPoint** from the file menu in the top bar, or press **Ctrl+E** for PDF and **Ctrl+Shift+E** for PowerPoint, to share your presentation. Both exports are built into Hype. PowerPoint renders slides and converted animations at 4K (3840 × 2160). Slides preserve the rendered appearance rather than exposing editable text and shapes; the receiving computer does not need your fonts installed. Videos are embedded, and animated WebP/GIF images are converted to MP4 automatically without changing the original files. PDF captures still slides.
+## Use HypeX from the command line
 
-Export runs in the background. The top bar shows progress through rendering, video conversion, and packaging under the presentation name, with a **Cancel export** button. You can keep editing; the export uses the presentation as it was when you started. Failed or cancelled exports leave an existing file intact.
-
-PDF keeps text as vectors and sizes embedded images for their visible area at 4K, omitting unused pixels outside spanning crops. Images use lossless compression to preserve fine detail. Photo-heavy PDFs can be larger than JPEG-compressed exports because they avoid additional compression artifacts.
-
-PowerPoint export automatically converts other video formats, including WebM, to H.264 MP4 with AAC audio, leaving your originals untouched. Compatible MP4s are embedded directly. Use `fit` for videos that aren’t 16:9. Video autoplay and looping may vary between presentation apps; playback in Microsoft PowerPoint has not yet been verified.
-
-## Use Hype from the command line
-
-Hype's commands need no display, so a script or an AI agent can build a presentation from start to finish. A presentation is just a Markdown file: write it with any tool, then check, preview, and export it with `hype`.
+The `hype` command needs no window, so scripts and coding agents can build, check, and export presentations:
 
 ```sh
 hype new talk/presentation.md --title "My talk" --theme tokyo-night
 hype check talk/presentation.md                   # every problem, with its slide and line
-hype slides talk/presentation.md                  # an outline: number, lines, headline, media
+hype slides talk/presentation.md                  # an outline of the slides
 hype render talk/presentation.md --slide 3 -o slide.png
-hype render talk/presentation.md -o slides/       # every slide, plus slides.json
-hype export talk/presentation.md talk.pdf         # or talk.pptx
+hype export talk/presentation.md talk.pdf
 hype themes
 ```
 
-`check` reports all problems at once, such as missing media, invalid layout options, and unfinished code fences, and warns when a slide holds so much text that it shrinks below a readable size. `render --slide` writes a PNG even for a slide with problems, showing them on a banner, so you can look at what went wrong. Add `--json` to any command for structured output, and `--width` to `render` for another size. Commands exit 0 on success and 1 on failure, with errors on stderr.
-
-`hype` alone lists the commands, and `hype open` starts the editor. `hype help format` prints the whole slide format, from front matter to media options, in a form an agent can read once and work from. `hype help <command>` lists a command's options.
-
-To teach your coding agents about Hype, run `hype skill install`. It copies a short skill to `~/.agents/skills/hype/`, where Codex finds it, and links it into `~/.claude/skills/` for Claude Code. The skill points the agent at `hype help format`, so it stays current as Hype is upgraded. `hype skill` prints it instead.
-
-If the presentation is open in the editor, changes written to the file appear there right away, and the editor stays on the slide you were viewing, even when slides are added or removed before it. **Ctrl+Z** undoes such a change. The editor never replaces unsaved changes of its own.
+`hype help format` prints the slide format for an agent to read, and `hype skill install` teaches Claude Code and Codex about it. If the presentation is open in HypeX, changes written to the file appear there right away.
 
 ## Keyboard shortcuts
 
-Slide navigation and selection shortcuts apply when the sidebar or preview has focus. Inside the Markdown editor, arrows and Shift+arrows move the cursor and select text.
+Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with the arrow keys on a Mac keyboard.
 
 | Shortcut | Action |
 | --- | --- |
-| Ctrl+N / Ctrl+O | New presentation / open file |
-| Ctrl+S / Ctrl+Shift+S | Save / save as |
-| Ctrl+E / Ctrl+Shift+E | Export as PDF / PowerPoint |
-| Ctrl+M | Overview on / off |
-| Ctrl+. | Markdown source on / off |
-| Ctrl+B / Ctrl+I / Ctrl+U | Bold / italic / underline |
-| Ctrl+H / Ctrl+K / Ctrl+/ | Headline / code block / hidden comment |
-| ? / F1 | Show all shortcuts (F1 also works while typing) |
-| Tab / Shift+Tab | Switch between sidebar and Markdown input |
+| ⌘N / ⌘O | New presentation / open file |
+| ⌘S / ⇧⌘S | Save / save as |
+| ⌘E | Export as PDF |
+| ⌥⌘P or F5 | Present |
+| Esc | Stop presenting |
+| Space | Play or pause video while presenting |
+| ⌘0 | Overview on / off |
+| ⌘. | Markdown source on / off |
+| ⌘B / ⌘I / ⌘U | Bold / italic / underline |
+| ⌘1 / ⌘K / ⌘/ | Headline / code block / hidden note |
+| ? / F1 | Show all shortcuts |
+| Tab / ⇧Tab | Switch between slides and editor |
 | Arrow keys | Previous / next slide; up and down move by a row in Overview |
-| Enter | Open the selected slide from Overview |
+| Return | Open the selected slide from Overview |
 | Page Up / Page Down | Jump five slides, or five rows in Overview |
 | Home / End | First / last slide |
-| Ctrl+Up or Ctrl+Left | Move selected slides earlier (Ctrl+Up by a row in Overview) |
-| Ctrl+Down or Ctrl+Right | Move selected slides later (Ctrl+Down by a row in Overview) |
-| Shift+arrows / Shift+click | Extend the slide selection |
-| Ctrl+Enter | Add a slide |
-| Ctrl+D | Duplicate selected slides |
-| Delete | Delete selected slides |
-| Ctrl+V | Paste text or add and name media |
-| Ctrl+Z / Ctrl+Shift+Z | Undo / redo |
-| Ctrl+Space / F5 | Toggle presentation |
-| Escape | Leave presentation |
-| Space | Play / pause video while presenting |
+| ⌘↑ or ⌘← | Move selected slides earlier |
+| ⌘↓ or ⌘→ | Move selected slides later |
+| ⇧-arrows / ⇧-click | Extend the slide selection |
+| ⌘Return | Add a slide |
+| ⌘D | Duplicate selected slides |
+| ⌫ or Delete | Delete selected slides |
+| ⌘V | Paste text, or add and name media |
+| ⌘Z / ⇧⌘Z | Undo / redo |
 
-With more than one display, Hype sends the slides fullscreen to an external display
-and opens Presenter View on the laptop display with the current slide, next slide,
-and any speaker notes written as `<!-- comments -->`. If Hype is already on an
-external display, that display remains the audience display. Navigate from either
-display with the presentation shortcuts.
+Hype's Ctrl shortcuts become ⌘ shortcuts, except the three macOS keeps for itself: ⌘Space (Spotlight), ⌘H (hide) and ⌘M (minimize). HypeX presents with ⌥⌘P, makes headlines with ⌘1, and toggles the overview with ⌘0 instead.
 
-The mouse wheel over the sidebar selects the previous or next slide. Home/End jumps to the first/last slide throughout Visual mode, including its input field. In full Markdown mode, Home/End moves within the current line. In either editor, Page Up/Down scrolls a page; Ctrl+Home/End goes to the start/end of the text.
-
-## Run from source
-
-To build Hype yourself, install a C++17 compiler, make, Qt 6.9 or newer, FFmpeg, and GNU source-highlight; see [the package definition](pkgbuild/PKGBUILD) for dependencies. Then:
+## Develop
 
 ```sh
-./bin/build
-./build/hype open examples/welcome.md
+bin/build-macos                 # build-macos/HypeX.app
+bin/test                        # unit tests; HYPE_GUI_TESTS=1 bin/test adds the editor tests
+python3 -m unittest tests.test_cli tests.test_shutdown tests.test_export
+bin/sync-themes                 # refresh the bundled Omarchy themes
 ```
 
-For a launcher entry that rebuilds this checkout when opened, run `./bin/install-dev` and choose **Hype (Development)**.
+The macOS changes are small and sit behind `Q_OS_MACOS` and `macx {}`, so the same code still builds Hype on Linux. CI builds and tests both. A weekly workflow merges new Hype releases into a pull request, or opens an issue when they conflict. HypeX bundles md4c 0.5.3, because Homebrew's Qt was built against it and md4c 0.6 makes Qt drop `_underline_`.
+
+## Credits
+
+Hype is by [David Heinemeier Hansson](https://github.com/dhh) and the Omarchy contributors, under the [MIT License](LICENSE). HypeX is an unofficial port and is not affiliated with Hype or Omarchy.

@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-APP = Path(__file__).resolve().parents[1] / ('build-macos/Hype.app/Contents/MacOS/Hype' if sys.platform == 'darwin' else 'build/hype')
+APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/MacOS/HypeX' if sys.platform == 'darwin' else 'build/hype')
 DECK = '# One\n\n---\n\n# Two\n\n- a\n- b\n\n---\n\n```ruby\na = 1\n---\nb = 2\n```\n'
 
 
@@ -129,7 +129,7 @@ class CliTests(unittest.TestCase):
 
     def test_themes_and_help(self):
         themes = json.loads(self.hype('themes', '--json').stdout)['themes']
-        if sys.platform == 'darwin':  # Hype.app bundles the stock Omarchy themes.
+        if sys.platform == 'darwin':  # HypeX.app bundles the stock Omarchy themes.
             self.assertIn('paper', themes)
             self.assertIn('tokyo-night', themes)
         else:

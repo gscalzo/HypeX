@@ -470,7 +470,7 @@ void Deck::discoverThemes() {
     QStringList roots{root + "/themes", QDir::homePath() + "/omarchy/themes",
                       QDir::homePath() + "/.config/omarchy/themes"};
 #ifdef Q_OS_MACOS
-    // Stock Omarchy themes ship inside Hype.app; installed ones still take precedence.
+    // Stock Omarchy themes ship inside HypeX.app; installed ones still take precedence.
     roots.prepend(QCoreApplication::applicationDirPath() + "/../Resources/themes");
 #endif
     for (auto &r : roots)

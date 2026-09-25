@@ -12,10 +12,10 @@ jobs:
   macos:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install requirements
         run: brew bundle --file=Brewfile
-      - name: Build Hype.app
+      - name: Build HypeX.app
         run: bin/build-macos
       - name: Unit and GUI tests
         run: HYPE_GUI_TESTS=1 bin/test
@@ -24,7 +24,7 @@ jobs:
       - name: Check the fixtures
         run: |
           for deck in examples/welcome.md tests/fixtures/roundtrip/*/presentation.md; do
-            build-macos/Hype.app/Contents/MacOS/Hype check "$deck"
+            build-macos/HypeX.app/Contents/MacOS/HypeX check "$deck"
           done
 
   linux:
@@ -34,9 +34,9 @@ jobs:
       - name: Install requirements
         run: |
           pacman -Syu --noconfirm --needed base-devel git python \
-            qt6-base qt6-declarative qt6-multimedia qt6-imageformats qt6-svg \
+            qt6-base qt6-declarative qt6-multimedia qt6-imageformats qt6-svg qt6-webengine \
             ffmpeg source-highlight zlib libwebp ttf-jetbrains-mono ttf-jetbrains-mono-nerd
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build
         run: bin/build
       - name: Unit tests

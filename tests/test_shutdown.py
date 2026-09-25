@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-APP = Path(__file__).resolve().parents[1] / ('build-macos/Hype.app/Contents/MacOS/Hype' if sys.platform == 'darwin' else 'build/hype')
+APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/MacOS/HypeX' if sys.platform == 'darwin' else 'build/hype')
 
 
 class ShutdownTests(unittest.TestCase):

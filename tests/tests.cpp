@@ -1235,7 +1235,7 @@ class HypeTests : public QObject {
     }
     void asynchronousExport() {
 #ifdef Q_OS_MACOS
-        const QString executable = QFINDTESTDATA("../build-macos/Hype.app/Contents/MacOS/Hype");
+        const QString executable = QFINDTESTDATA("../build-macos/HypeX.app/Contents/MacOS/HypeX");
 #else
         const QString executable = QFINDTESTDATA("../build/hype");
 #endif
