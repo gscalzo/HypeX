@@ -441,12 +441,13 @@ ApplicationWindow {
             }
         }
 
-        // Like Keynote's presenter display, the layout depends only on the window's size:
-        // the talk clock sits in the top bar, the slides keep their place, and notes scroll.
+        // Like Keynote's presenter display, the layout depends only on the window's size and
+        // where the presenter put the divider: the slides keep their place, and notes scroll.
         ColumnLayout {
             id: presenterLayout
-            readonly property real slideColumn: (width - 22) * 2 / 3
-            readonly property real slidesHeight: Math.min(presenterWindow.height * 0.42, slideColumn * 9 / 16 + 24)
+            property real dragShare: -1
+            readonly property real slidesShare: dragShare >= 0 ? dragShare : deck.presenterSlidesShare
+            readonly property real slidesHeight: Math.min(presenterWindow.height * slidesShare, (width - 22) * 0.6 * 9 / 16)
             anchors.fill: parent; anchors.margins: 28; spacing: 22
             RowLayout {
                 Layout.fillWidth: true; spacing: 16
@@ -484,74 +485,100 @@ ApplicationWindow {
                     background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
                 }
             }
-            RowLayout {
-                Layout.fillWidth: true; spacing: 22
+            // The slides take the share of the window the presenter dragged them to; notes get the rest.
+            Item {
+                id: presenterSlides
+                Layout.fillWidth: true
                 Layout.minimumHeight: presenterLayout.slidesHeight
                 Layout.maximumHeight: presenterLayout.slidesHeight
                 Layout.preferredHeight: presenterLayout.slidesHeight
-                ColumnLayout {
-                    Layout.fillHeight: true
-                    Layout.minimumWidth: presenterLayout.slideColumn; Layout.maximumWidth: presenterLayout.slideColumn
-                    Label { text: "CURRENT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-                    Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
-                            anchors.top: parent.top; anchors.left: parent.left
-                            width: Math.min(parent.width, parent.height * 16 / 9)
-                            height: width * 9 / 16
-                            color: deck.background; border.color: win.ui.border
-                            Image {
-                                anchors.fill: parent
-                                source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
-                                asynchronous: true; retainWhileLoading: true; cache: true
-                                sourceSize: Qt.size(960, 540)
-                            }
-                        }
+                Rectangle {
+                    id: currentSlide; objectName: "presenterCurrent"
+                    anchors.top: parent.top; anchors.left: parent.left
+                    width: Math.min(parent.height * 16 / 9, (parent.width - 22) * 0.6)
+                    height: width * 9 / 16
+                    color: deck.background; border.color: win.ui.border
+                    Image {
+                        anchors.fill: parent
+                        source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
+                        asynchronous: true; retainWhileLoading: true; cache: true
+                        sourceSize: Qt.size(960, 540)
                     }
                 }
-                ColumnLayout {
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    Label { text: "NEXT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-                    Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
-                            anchors.top: parent.top; anchors.left: parent.left
-                            width: Math.min(parent.width, parent.height * 16 / 9)
-                            height: width * 9 / 16
-                            color: deck.background; border.color: win.ui.border
-                            Image {
-                                anchors.fill: parent
-                                source: deck.selected + 1 < deck.count
-                                    ? "image://slides/" + (deck.revision, deck.renderId(deck.selected + 1)) : ""
-                                asynchronous: true; retainWhileLoading: true; cache: true
-                                sourceSize: Qt.size(640, 360)
-                            }
-                            Label {
-                                anchors.centerIn: parent; visible: deck.selected + 1 >= deck.count
-                                text: "End of presentation"; color: win.ui.muted; font.pixelSize: 16
-                            }
-                        }
+                Rectangle {
+                    objectName: "presenterNext"
+                    anchors.top: parent.top; anchors.right: parent.right
+                    width: Math.min(currentSlide.width * 0.7, parent.width - currentSlide.width - 22)
+                    height: width * 9 / 16
+                    color: deck.background; border.color: win.ui.border
+                    Image {
+                        anchors.fill: parent
+                        source: deck.selected + 1 < deck.count
+                            ? "image://slides/" + (deck.revision, deck.renderId(deck.selected + 1)) : ""
+                        asynchronous: true; retainWhileLoading: true; cache: true
+                        sourceSize: Qt.size(640, 360)
+                    }
+                    Label {
+                        anchors.centerIn: parent; visible: deck.selected + 1 >= deck.count
+                        text: "End of presentation"; color: win.ui.muted; font.pixelSize: 16
                     }
                 }
             }
-            Rectangle { Layout.fillWidth: true; height: 1; color: win.ui.border }
-            RowLayout {
-                Layout.fillWidth: true; spacing: 6
-                Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
-                NotesSizeButton { objectName: "notesSmaller"; text: "A−"; step: -4; description: "Smaller notes (Ctrl+-)" }
-                NotesSizeButton { objectName: "notesLarger"; text: "A+"; step: 4; description: "Larger notes (Ctrl+=)" }
+            Item {
+                objectName: "notesDivider"
+                Layout.fillWidth: true; Layout.preferredHeight: 14
+                Layout.topMargin: -8; Layout.bottomMargin: -8
+                Rectangle {
+                    anchors.centerIn: parent; width: parent.width
+                    height: dividerDrag.containsMouse || dividerDrag.pressed ? 3 : 1; radius: height / 2
+                    color: dividerDrag.containsMouse || dividerDrag.pressed ? win.ui.accent : win.ui.border
+                }
+                MouseArea {
+                    id: dividerDrag
+                    property real startY: 0
+                    property real startShare: 0
+                    anchors.fill: parent; hoverEnabled: true; preventStealing: true
+                    cursorShape: Qt.SplitVCursor
+                    onPressed: function(mouse) {
+                        startY = mapToItem(null, mouse.x, mouse.y).y
+                        startShare = presenterLayout.slidesShare
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (!pressed) return
+                        const dy = mapToItem(null, mouse.x, mouse.y).y - startY
+                        presenterLayout.dragShare = Math.max(0.12, Math.min(0.6, startShare + dy / presenterWindow.height))
+                    }
+                    onReleased: {
+                        if (presenterLayout.dragShare >= 0) deck.presenterSlidesShare = presenterLayout.dragShare
+                        presenterLayout.dragShare = -1
+                    }
+                    onDoubleClicked: deck.presenterSlidesShare = 0.3
+                }
             }
-            ScrollView {
+            Item {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                Layout.preferredWidth: 0; Layout.preferredHeight: 0; clip: true
-                background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
-                TextArea {
-                    objectName: "presenterNotes"; readOnly: true; selectByMouse: true
-                    text: deck.speakerNotes || "No speaker notes for this slide."
-                    color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
-                    font.pixelSize: deck.presenterNotesSize; wrapMode: TextEdit.Wrap
-                    leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
-                    background: null
+                Layout.preferredWidth: 0; Layout.preferredHeight: 0
+                HoverHandler { id: notesHover }
+                ScrollView {
+                    anchors.fill: parent; clip: true
+                    background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
+                    TextArea {
+                        objectName: "presenterNotes"; readOnly: true; selectByMouse: true
+                        text: deck.speakerNotes || "No speaker notes for this slide."
+                        color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
+                        font.pixelSize: deck.presenterNotesSize; wrapMode: TextEdit.Wrap
+                        leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
+                        background: null
+                    }
+                }
+                // Keynote's font buttons: in the notes' corner while the pointer is over them.
+                Row {
+                    anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10
+                    spacing: 6
+                    opacity: notesHover.hovered ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    NotesSizeButton { objectName: "notesSmaller"; text: "A−"; step: -4; description: "Smaller notes (Ctrl+-)" }
+                    NotesSizeButton { objectName: "notesLarger"; text: "A+"; step: 4; description: "Larger notes (Ctrl+=)" }
                 }
             }
             Label {

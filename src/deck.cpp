@@ -645,6 +645,19 @@ void Deck::setPresenterNotesSize(int size) {
     settings.setValue("presenter/notesSize", size);
     emit presenterNotesSizeChanged();
 }
+// The share of Presenter View's height the slides take, above the notes.
+double Deck::presenterSlidesShare() const {
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    return qBound(0.12, settings.value("presenter/slidesShare", 0.3).toDouble(), 0.6);
+}
+void Deck::setPresenterSlidesShare(double share) {
+    share = qBound(0.12, share, 0.6);
+    if (qFuzzyCompare(share, presenterSlidesShare()))
+        return;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    settings.setValue("presenter/slidesShare", share);
+    emit presenterSlidesShareChanged();
+}
 static void rememberPresentation(const QString &path) {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
     settings.setValue("files/lastDirectory", QFileInfo(path).absolutePath());

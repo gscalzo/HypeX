@@ -50,6 +50,7 @@ class Deck : public QAbstractListModel {
     Q_PROPERTY(QStringList fontNames READ fontNames CONSTANT)
     Q_PROPERTY(QString fontName READ fontName NOTIFY changed)
     Q_PROPERTY(int presenterNotesSize READ presenterNotesSize WRITE setPresenterNotesSize NOTIFY presenterNotesSizeChanged)
+    Q_PROPERTY(double presenterSlidesShare READ presenterSlidesShare WRITE setPresenterSlidesShare NOTIFY presenterSlidesShareChanged)
     Q_PROPERTY(QStringList themeNames READ themeNames CONSTANT)
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed)
     Q_PROPERTY(QColor background READ background NOTIFY changed)
@@ -93,6 +94,8 @@ class Deck : public QAbstractListModel {
     Q_INVOKABLE void chooseFont(const QString &family);
     int presenterNotesSize() const;
     void setPresenterNotesSize(int size);
+    double presenterSlidesShare() const;
+    void setPresenterSlidesShare(double share);
     QStringList themeNames() const;
     QString themeName() const;
     QColor background() const;
@@ -149,6 +152,7 @@ class Deck : public QAbstractListModel {
     void changed();
     void statusChanged();
     void presenterNotesSizeChanged();
+    void presenterSlidesShareChanged();
     void opened(bool existing);
     void compressingImageChanged();
     void exportChanged();

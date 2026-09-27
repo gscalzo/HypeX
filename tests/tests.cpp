@@ -744,9 +744,11 @@ class HypeTests : public QObject {
         if (!qEnvironmentVariableIsSet("HYPE_GUI_TESTS")) QSKIP("Set HYPE_GUI_TESTS=1");
         QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
         const QVariant savedSize = settings.value("presenter/notesSize");
+        const QVariant savedShare = settings.value("presenter/slidesShare");
         Deck deck;
         deck.editSource("# First\n<!-- say hello -->\n---\n# Second\n");
         deck.setPresenterNotesSize(24);
+        deck.setPresenterSlidesShare(0.3);
         QQuickStyle::setStyle("Basic");
         qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");
         qmlRegisterType<AppTheme>("Hype", 1, 0, "AppTheme");
@@ -789,6 +791,20 @@ class HypeTests : public QObject {
         QCOMPARE(deck.presenterNotesSize(), 28);
         QCOMPARE(notes->property("font").value<QFont>().pixelSize(), 28);
         QCOMPARE(Deck().presenterNotesSize(), 28);
+        // Dragging the divider up gives the notes more room, and HypeX remembers it.
+        QVERIFY(QTest::qWaitForWindowExposed(presenter));
+        auto divider = qobject_cast<QQuickItem *>(window->findChild<QObject *>("notesDivider"));
+        auto current = qobject_cast<QQuickItem *>(window->findChild<QObject *>("presenterCurrent"));
+        QVERIFY(divider && current);
+        const double before = current->height();
+        const QPoint grip = divider->mapToScene(QPointF(divider->width() / 2, divider->height() / 2)).toPoint();
+        QTest::mousePress(presenter, Qt::LeftButton, {}, grip);
+        for (int i = 1; i <= 10; ++i)
+            QTest::mouseMove(presenter, grip - QPoint(0, 8 * i));
+        QTest::mouseRelease(presenter, Qt::LeftButton, {}, grip - QPoint(0, 80));
+        QTRY_VERIFY(current->height() < before - 40);
+        QVERIFY(deck.presenterSlidesShare() < 0.3);
+        QCOMPARE(Deck().presenterSlidesShare(), deck.presenterSlidesShare());
         // Rehearsing again while a show runs does nothing; ending it hides Presenter View.
         QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
         QVERIFY(window->property("presenting").toBool());
@@ -799,6 +815,8 @@ class HypeTests : public QObject {
         QVERIFY(window->isVisible());
         if (savedSize.isValid()) settings.setValue("presenter/notesSize", savedSize);
         else settings.remove("presenter/notesSize");
+        if (savedShare.isValid()) settings.setValue("presenter/slidesShare", savedShare);
+        else settings.remove("presenter/slidesShare");
         window->setProperty("allowClose", true);
         window->close();
     }
