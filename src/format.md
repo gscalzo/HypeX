@@ -33,6 +33,15 @@ overridden with a `#rrggbb` color: `color_background`, `color_foreground`,
 `color_accent`, `color_green`, `color_red`, `color_yellow`, `color_magenta`,
 `color_cyan`, `color_dark_foreground`.
 
+`**Bold**` text uses the accent color and the font's bold weight. To give it
+a font and color of its own, add `bold_font: "Arial Black"` and
+`bold_color: "#d0021b"`; either can be left out. Choosing a theme keeps
+them. Hype on Omarchy ignores them and shows its usual bold.
+
+For a deck that looks the same everywhere, use a font Omarchy installs by
+default: JetBrains Mono, Noto, or iA Writer. `hype check` warns about any
+other `font` or `bold_font`.
+
 ## Slides
 
 Separate slides with a line holding only `---`, with a blank line on either
@@ -66,9 +75,21 @@ puts "Code is highlighted when you name the language"
 - Ordinary line breaks stay visible on the slide.
 - `<!-- comments -->` are hidden from the slide; use them for speaker notes
   (see Speaker notes below).
-- `<!-- hype: duration="20m" -->` on the first slide sets the talk's length;
-  Presenter View counts it down from the second slide. Also `1h 30m`, `25:00`.
 - A `---` inside a code fence does not split the slide.
+
+## Slide settings
+
+A comment that begins with `hype:` sets values for its slide instead of being
+a note. Put several in one comment: `<!-- hype: background="#000000" foreground="#ffffff" -->`.
+
+| Setting | Effect |
+| --- | --- |
+| `background="#rrggbb"` | This slide's background color |
+| `foreground="#rrggbb"` | This slide's text color |
+| `alignment="left"` | Left-align the text; `"center"` centers it |
+| `duration="20m"` | On the first slide only: the talk's length, counted down in Presenter View from the second slide. Also `45 min`, `1h 30m`, `90s`, `25:00` |
+
+`hype check` warns about a length it can't read, or one on a later slide.
 
 ## Images and video
 
@@ -150,6 +171,7 @@ flowchart LR
 
 ```text
 hype new talk/presentation.md --title "My talk" --theme tokyo-night
+hype themes                                the installed themes
 hype check talk/presentation.md --json     every problem, with slide and line
 hype slides talk/presentation.md --json    an outline of the slides
 hype render talk/presentation.md --slide 3 -o slide.png
@@ -164,3 +186,4 @@ GIFs and WebPs become looping movies, and speaker notes become notes pages.
 
 Commands need no display. They exit 0 on success and 1 on failure, with errors
 on stderr. Render a slide and look at the PNG to judge how it reads.
+`hype open talk/presentation.md` opens the editor, which needs the desktop.

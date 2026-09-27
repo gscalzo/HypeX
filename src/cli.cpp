@@ -4,6 +4,7 @@
 #ifdef Q_OS_MACOS
 #include "macos.h"
 #endif
+#include <QColor>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QFile>
@@ -78,10 +79,18 @@ QList<Problem> findProblems(const Deck &deck) {
         scalar(parsed.header, "color_background").isEmpty())
         problems << Problem{0, headerLine("theme"), false,
                             "Theme " + deck.themeName() + " is not installed; using the default colors"};
+    const QString boldColor = scalar(parsed.header, "bold_color");
+    if (!boldColor.isEmpty() && !QColor(boldColor).isValid())
+        problems << Problem{0, headerLine("bold_color"), false,
+                            "Unreadable bold_color " + boldColor + "; write it as #d0021b"};
 #ifdef Q_OS_MACOS
     if (!isOmarchyFont(deck.fontName()))
         problems << Problem{0, headerLine("font"), false,
                             "Font " + deck.fontName() + " is not installed by default on Omarchy"};
+    const QString boldFont = scalar(parsed.header, "bold_font");
+    if (!boldFont.isEmpty() && !isOmarchyFont(boldFont))
+        problems << Problem{0, headerLine("bold_font"), false,
+                            "Bold font " + boldFont + " is not installed by default on Omarchy"};
 #endif
     for (int i = 0; i < deck.count(); ++i) {
         const int duration = talkDuration(deck.slide(i));

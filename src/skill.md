@@ -33,6 +33,23 @@ diagrams, for this version of Hype.
    carries the speaker notes, formatted; its slides are pictures, so changes
    go in the Markdown, followed by a new export.
 
+## Where things go
+
+`hype help format` has the details; this is where to look for them.
+
+- What the speaker says: `<!-- comments -->` on the slide. They appear in
+  Presenter View and on the PowerPoint notes pages, never on the slide.
+- The talk's length: `<!-- hype: duration="20m" -->` on the first slide, for
+  Presenter View's countdown.
+- The deck's look: `theme`, `font`, and `color_*` in the front matter. For bold
+  words in their own style, such as a heavier face in red, `bold_font` and
+  `bold_color`; `**bold**` in the text then uses them. Do not use HTML or inline
+  styles for this.
+- One slide's colors or alignment: `<!-- hype: background="#000000" -->`,
+  `foreground`, `alignment="left"`.
+- Prefer fonts Omarchy installs (JetBrains Mono, Noto, iA Writer); `hype check`
+  warns about others, so mention it if the person asked for one.
+
 ## Working with the person
 
 - If they have the presentation open in the Hype editor, your saved edits appear
@@ -42,3 +59,5 @@ diagrams, for this version of Hype.
   more slides over fuller ones.
 - Every command takes `--json`, exits 0 on success and 1 on failure, and writes
   errors to stderr. `hype help <command>` lists a command's options.
+- This skill comes with Hype. After updating Hype, `hype skill install` refreshes
+  the installed copy.

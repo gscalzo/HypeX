@@ -556,8 +556,11 @@ static void sizeSlideText(QTextDocument &doc, const QVariantMap &palette, qreal 
                 cf.setProperty(QTextFormat::FontSizeAdjustment, 4 - level);
             }
             QColor color(palette["foreground"].toString());
-            if (fragment.charFormat().fontWeight() >= QFont::Bold && !level)
-                color = QColor(palette["accent"].toString());
+            if (fragment.charFormat().fontWeight() >= QFont::Bold && !level) {
+                color = QColor(palette.value("bold_color", palette["accent"]).toString());
+                if (const QString bold = palette.value("bold_font").toString(); !bold.isEmpty() && !code)
+                    cf.setFontFamilies({bold});
+            }
             if (block.text().startsWith(QString::fromUtf8("—"))) {
                 cf.setProperty(QTextFormat::FontPixelSize, qRound(fontSize * 0.7));
             }
@@ -674,6 +677,7 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
                                       : "#ffffff";
                     palette["foreground"] = ink;
                     palette["accent"] = ink;
+                    palette.remove("bold_color");
                 }
             }
         }
@@ -741,7 +745,8 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
         // Layout happens in 1080p slide units, so every render size, the PDF and
         // a theme change all reuse one search. Colors never affect the fit.
         const QString fit = QString("%1 %2 %3 %4 %5 ").arg(high).arg(area.width()).arg(area.height())
-                                .arg(centered).arg(code) + palette.value("font").toString() + '\n' + text;
+                                .arg(centered).arg(code) + palette.value("font").toString() + '\n' +
+                                palette.value("bold_font").toString() + '\n' + text;
         if (const qreal fitted = fittedSize(fit); fitted > 0) {
             low = fitted;
             layoutSlideText(doc, text, palette, low, area.width(), centered, code);

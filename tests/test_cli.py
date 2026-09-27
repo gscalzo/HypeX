@@ -86,6 +86,15 @@ class CliTests(unittest.TestCase):
                          [(1, 'warning', 'Unreadable duration; write it as 20m, 1h 30m or 25:00'),
                           (2, 'warning', "The talk's duration only counts on the first slide")])
 
+    def test_check_warns_about_bold_settings(self):
+        self.write('---\nfont: "JetBrains Mono"\nbold_color: "reddish"\nbold_font: "Arial Black"\n---\n\n# One **two**\n')
+        report = json.loads(self.hype('check', self.deck, '--json').stdout)
+        self.assertTrue(report['ok'])
+        found = [(p['line'], p['message']) for p in report['problems']]
+        self.assertIn((3, 'Unreadable bold_color reddish; write it as #d0021b'), found)
+        if sys.platform == 'darwin':
+            self.assertIn((4, 'Bold font Arial Black is not installed by default on Omarchy'), found)
+
     def test_slides_outlines_the_presentation(self):
         self.write('---\ntitle: Talk\n---\n\n' + DECK + '\n---\n\n![fit](photo.png)\n\nJust words\n')
         outline = json.loads(self.hype('slides', self.deck, '--json').stdout)
