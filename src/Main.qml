@@ -61,6 +61,8 @@ ApplicationWindow {
     property bool syncingEditor: false
     property bool editingSlide: false
     property bool presenting: false
+    // Rehearsing shows only Presenter View, on this display, like Keynote's Rehearse Slideshow.
+    property bool rehearsing: false
     readonly property bool popupOpen: pasteDialog.visible || compressionDialog.visible ||
         historyDialog.visible || closeDialog.visible || shortcutsOverlay.visible || themes.popup.visible || fonts.popup.visible ||
         slideMenu.visible || fileMenu.visible || slideBar.menuOpen || sourceBar.menuOpen
@@ -75,9 +77,51 @@ ApplicationWindow {
     property var presentationReturnScreen: null
     property int presentationReturnVisibility: Window.Windowed
     property rect presentationReturnGeometry: Qt.rect(0, 0, 0, 0)
-    function togglePresent() {
+    // The talk clock starts when the show leaves the slide it opened on.
+    property int talkFrom: -1
+    property double talkStart: 0
+    property double talkNow: 0
+    readonly property int talkRemaining: deck.talkDuration -
+        (talkStart > 0 ? Math.floor((talkNow - talkStart) / 1000) : 0)
+    function clockText(seconds) {
+        const h = Math.floor(seconds / 3600), m = Math.floor(seconds / 60) % 60, s = seconds % 60
+        const pad = function(n) { return (n < 10 ? "0" : "") + n }
+        return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s)
+    }
+    Connections {
+        target: deck
+        function onChanged() {
+            if (win.presenting && win.talkStart === 0 && deck.selected > 0 && deck.selected !== win.talkFrom) {
+                win.talkStart = win.talkNow = Date.now()
+            }
+        }
+    }
+    Timer {
+        interval: 250; repeat: true; running: win.presenting && win.talkStart > 0
+        onTriggered: win.talkNow = Date.now()
+    }
+    function togglePresent() { toggleShow(false) }
+    function rehearse() {
+        if (!presenting) toggleShow(true)
+    }
+    function toggleShow(rehearse) {
+        const wasRehearsing = rehearsing
+        rehearsing = !presenting && !!rehearse
         presenting = !presenting
-        console.info("[HypeX] presenting: " + presenting)
+        talkFrom = deck.selected
+        talkStart = 0
+        console.info("[HypeX] presenting: " + presenting + (rehearsing ? " (rehearsal)" : ""))
+        if (rehearsing) {
+            moveOnto(presenterWindow, win.screen)
+            if (MacKeys.mac) presenterWindow.showMaximized()
+            else presenterWindow.showFullScreen()
+            Qt.callLater(function() { presenterWindow.requestActivate() })
+            return
+        }
+        if (!presenting && wasRehearsing) {
+            presenterWindow.hide()
+            return
+        }
         if (presenting) {
             presentationReturnScreen = win.screen
             presentationReturnVisibility = win.visibility
@@ -353,7 +397,7 @@ ApplicationWindow {
                 player.stop()
                 video.clearOutput()
                 player.source = nextVideo
-                if (win.presenting && deck.media.video && deck.media.autoplay) player.play()
+                if (win.presenting && !win.rehearsing && deck.media.video && deck.media.autoplay) player.play()
             }
         }
         function onModelAboutToBeReset() {
@@ -364,7 +408,7 @@ ApplicationWindow {
         function onModelReset() { Qt.callLater(thumbnails.revealSelection) }
         function onOpened(existing) { Qt.callLater(function() { win.focusForDeck(existing) }) }
     }
-    onPresentingChanged: { if (presenting && deck.media.video && deck.media.autoplay) player.play() }
+    onPresentingChanged: { if (presenting && !rehearsing && deck.media.video && deck.media.autoplay) player.play() }
     onClosing: function(close) {
         if (!allowClose && !deck.flushAutosave() && deck.dirty) {
             close.accepted = false
@@ -374,6 +418,7 @@ ApplicationWindow {
         }
         if (presenting) {
             presenting = false
+            rehearsing = false
             presenterWindow.hide()
             player.stop()
         }
@@ -396,13 +441,38 @@ ApplicationWindow {
             }
         }
 
+        // Like Keynote's presenter display, the layout depends only on the window's size and
+        // where the presenter put the divider: the slides keep their place, and notes scroll.
         ColumnLayout {
+            id: presenterLayout
+            property real dragShare: -1
+            readonly property real slidesShare: dragShare >= 0 ? dragShare : deck.presenterSlidesShare
+            readonly property real slidesHeight: Math.min(presenterWindow.height * slidesShare, (width - 22) * 0.6 * 9 / 16)
             anchors.fill: parent; anchors.margins: 28; spacing: 22
             RowLayout {
                 Layout.fillWidth: true; spacing: 16
                 Label {
                     text: deck.title; color: win.ui.foreground; font.pixelSize: 22; font.bold: true
                     Layout.fillWidth: true; elide: Text.ElideRight
+                }
+                Label {
+                    visible: win.rehearsing
+                    text: "REHEARSAL"; color: win.ui.accent; font.pixelSize: 12; font.bold: true
+                    Layout.rightMargin: 16
+                }
+                Label {
+                    visible: deck.talkDuration > 0; Layout.alignment: Qt.AlignBaseline
+                    text: win.talkStart === 0 ? "TALK LENGTH" : win.talkRemaining < 0 ? "OVER TIME" : "TIME LEFT"
+                    color: win.ui.muted; font.pixelSize: 12; font.bold: true
+                }
+                Label {
+                    objectName: "talkClock"
+                    visible: deck.talkDuration > 0; Layout.alignment: Qt.AlignBaseline; Layout.rightMargin: 16
+                    text: (win.talkRemaining < 0 ? "+" : "") + win.clockText(Math.abs(win.talkRemaining))
+                    color: win.talkStart === 0 ? win.ui.muted : win.talkRemaining < 0 ? win.ui.error
+                        : win.talkRemaining <= 120 ? win.ui.accent : win.ui.foreground
+                    font.family: "JetBrains Mono"; font.bold: true
+                    font.pixelSize: Math.round(Math.max(36, presenterWindow.height * 0.07))
                 }
                 Label {
                     text: "Slide " + (deck.selected + 1) + " of " + deck.count
@@ -415,64 +485,100 @@ ApplicationWindow {
                     background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
                 }
             }
-            RowLayout {
-                Layout.fillWidth: true; Layout.preferredHeight: presenterWindow.height * 0.42; spacing: 22
-                ColumnLayout {
-                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 2
-                    Label { text: "CURRENT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-                    Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: Math.min(parent.width, parent.height * 16 / 9)
-                            height: width * 9 / 16
-                            color: deck.background; border.color: win.ui.border
-                            Image {
-                                anchors.fill: parent
-                                source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
-                                asynchronous: true; retainWhileLoading: true; cache: true
-                                sourceSize: Qt.size(960, 540)
-                            }
-                        }
+            // The slides take the share of the window the presenter dragged them to; notes get the rest.
+            Item {
+                id: presenterSlides
+                Layout.fillWidth: true
+                Layout.minimumHeight: presenterLayout.slidesHeight
+                Layout.maximumHeight: presenterLayout.slidesHeight
+                Layout.preferredHeight: presenterLayout.slidesHeight
+                Rectangle {
+                    id: currentSlide; objectName: "presenterCurrent"
+                    anchors.top: parent.top; anchors.left: parent.left
+                    width: Math.min(parent.height * 16 / 9, (parent.width - 22) * 0.6)
+                    height: width * 9 / 16
+                    color: deck.background; border.color: win.ui.border
+                    Image {
+                        anchors.fill: parent
+                        source: "image://slides/" + (deck.revision, deck.renderId(deck.selected))
+                        asynchronous: true; retainWhileLoading: true; cache: true
+                        sourceSize: Qt.size(960, 540)
                     }
                 }
-                ColumnLayout {
-                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
-                    Label { text: "NEXT"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-                    Item {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: Math.min(parent.width, parent.height * 16 / 9)
-                            height: width * 9 / 16
-                            color: deck.background; border.color: win.ui.border
-                            Image {
-                                anchors.fill: parent
-                                source: deck.selected + 1 < deck.count
-                                    ? "image://slides/" + (deck.revision, deck.renderId(deck.selected + 1)) : ""
-                                asynchronous: true; retainWhileLoading: true; cache: true
-                                sourceSize: Qt.size(640, 360)
-                            }
-                            Label {
-                                anchors.centerIn: parent; visible: deck.selected + 1 >= deck.count
-                                text: "End of presentation"; color: win.ui.muted; font.pixelSize: 16
-                            }
-                        }
+                Rectangle {
+                    objectName: "presenterNext"
+                    anchors.top: parent.top; anchors.right: parent.right
+                    width: Math.min(currentSlide.width * 0.7, parent.width - currentSlide.width - 22)
+                    height: width * 9 / 16
+                    color: deck.background; border.color: win.ui.border
+                    Image {
+                        anchors.fill: parent
+                        source: deck.selected + 1 < deck.count
+                            ? "image://slides/" + (deck.revision, deck.renderId(deck.selected + 1)) : ""
+                        asynchronous: true; retainWhileLoading: true; cache: true
+                        sourceSize: Qt.size(640, 360)
+                    }
+                    Label {
+                        anchors.centerIn: parent; visible: deck.selected + 1 >= deck.count
+                        text: "End of presentation"; color: win.ui.muted; font.pixelSize: 16
                     }
                 }
             }
-            Rectangle { Layout.fillWidth: true; height: 1; color: win.ui.border }
-            Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
-            ScrollView {
-                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
-                TextArea {
-                    objectName: "presenterNotes"; readOnly: true; selectByMouse: true
-                    text: deck.speakerNotes || "No speaker notes for this slide."
-                    color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
-                    font.pixelSize: 24; wrapMode: TextEdit.Wrap
-                    leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
-                    background: null
+            Item {
+                objectName: "notesDivider"
+                Layout.fillWidth: true; Layout.preferredHeight: 14
+                Layout.topMargin: -8; Layout.bottomMargin: -8
+                Rectangle {
+                    anchors.centerIn: parent; width: parent.width
+                    height: dividerDrag.containsMouse || dividerDrag.pressed ? 3 : 1; radius: height / 2
+                    color: dividerDrag.containsMouse || dividerDrag.pressed ? win.ui.accent : win.ui.border
+                }
+                MouseArea {
+                    id: dividerDrag
+                    property real startY: 0
+                    property real startShare: 0
+                    anchors.fill: parent; hoverEnabled: true; preventStealing: true
+                    cursorShape: Qt.SplitVCursor
+                    onPressed: function(mouse) {
+                        startY = mapToItem(null, mouse.x, mouse.y).y
+                        startShare = presenterLayout.slidesShare
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (!pressed) return
+                        const dy = mapToItem(null, mouse.x, mouse.y).y - startY
+                        presenterLayout.dragShare = Math.max(0.12, Math.min(0.6, startShare + dy / presenterWindow.height))
+                    }
+                    onReleased: {
+                        if (presenterLayout.dragShare >= 0) deck.presenterSlidesShare = presenterLayout.dragShare
+                        presenterLayout.dragShare = -1
+                    }
+                    onDoubleClicked: deck.presenterSlidesShare = 0.3
+                }
+            }
+            Item {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                Layout.preferredWidth: 0; Layout.preferredHeight: 0
+                HoverHandler { id: notesHover }
+                ScrollView {
+                    anchors.fill: parent; clip: true
+                    background: Rectangle { color: win.ui.panel; radius: win.rounding; border.color: win.ui.border }
+                    TextArea {
+                        objectName: "presenterNotes"; readOnly: true; selectByMouse: true
+                        text: deck.speakerNotes || "No speaker notes for this slide."
+                        color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
+                        font.pixelSize: deck.presenterNotesSize; wrapMode: TextEdit.Wrap
+                        leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
+                        background: null
+                    }
+                }
+                // Keynote's font buttons: in the notes' corner while the pointer is over them.
+                Row {
+                    anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10
+                    spacing: 6
+                    opacity: notesHover.hovered ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    NotesSizeButton { objectName: "notesSmaller"; text: "A−"; step: -4; description: "Smaller notes (Ctrl+-)" }
+                    NotesSizeButton { objectName: "notesLarger"; text: "A+"; step: 4; description: "Larger notes (Ctrl+=)" }
                 }
             }
             Label {
@@ -638,6 +744,9 @@ ApplicationWindow {
     Shortcut { sequences: ["Return", "Enter"]; enabled: !win.popupOpen && !deck.compressingImage && win.overview && !win.presenting; onActivated: win.focusMarkdown() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+N"; onActivated: deck.newDeck() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: MacKeys.present; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; autoRepeat: false; onActivated: win.togglePresent() }
+    Shortcut { sequence: "Ctrl+Alt+R"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting; autoRepeat: false; onActivated: win.rehearse() }
+    Shortcut { sequences: ["Ctrl+=", "Ctrl++"]; context: Qt.ApplicationShortcut; enabled: win.presenting && presenterWindow.visible; onActivated: deck.presenterNotesSize += 4 }
+    Shortcut { sequence: "Ctrl+-"; context: Qt.ApplicationShortcut; enabled: win.presenting && presenterWindow.visible; onActivated: deck.presenterNotesSize -= 4 }
     Shortcut { sequence: "Escape"; context: Qt.ApplicationShortcut; enabled: !win.popupOpen && !deck.compressingImage && win.presenting; onActivated: win.togglePresent() }
     Shortcut { sequence: "Ctrl+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.undo() }
     Shortcut { sequence: "Ctrl+Shift+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.redo() }
@@ -688,6 +797,22 @@ ApplicationWindow {
             radius: win.softRadius
             color: toolbarButton.primary ? (toolbarButton.lit ? win.ui.accentHover : win.ui.accent) : toolbarButton.lit ? win.ui.hover : "transparent"
         }
+    }
+    component NotesSizeButton: Button {
+        required property int step
+        required property string description
+        focusPolicy: Qt.NoFocus
+        enabled: step < 0 ? deck.presenterNotesSize > 12 : deck.presenterNotesSize < 72
+        onClicked: deck.presenterNotesSize += step
+        Accessible.name: description
+        ToolTip.visible: hovered; ToolTip.text: MacKeys.label(description)
+        implicitWidth: 34; implicitHeight: 26
+        contentItem: Text {
+            text: parent.text; color: win.ui.foreground; opacity: parent.enabled ? 1 : 0.4
+            font.pixelSize: parent.step < 0 ? 12 : 15; font.bold: true
+            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+        }
+        background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
     }
     component EditorButton: ToolButton {
         id: editorButton
@@ -1005,9 +1130,17 @@ ApplicationWindow {
                     AppMenuItem { text: "Version history…"; onTriggered: historyDialog.open() }
                 }
             }
+            // Like Keynote's Play button: a click presents, holding it offers Rehearse.
             ToolbarIconButton {
-                objectName: "presentButton"; iconName: "present"; description: "Present (Ctrl+Space)"; primary: true
+                objectName: "presentButton"; iconName: "present"; description: "Present (Ctrl+Space) · hold to rehearse"; primary: true
                 onClicked: win.togglePresent()
+                onPressAndHold: presentMenu.open()
+                AppMenu {
+                    id: presentMenu; objectName: "presentMenu"
+                    y: parent.height + 4
+                    AppMenuItem { text: "Present"; hint: "Ctrl+Space"; onTriggered: win.togglePresent() }
+                    AppMenuItem { text: "Rehearse"; hint: "Ctrl+Alt+R"; onTriggered: win.rehearse() }
+                }
             }
         }
     }
@@ -1021,7 +1154,7 @@ ApplicationWindow {
         readonly property var groups: [
             { title: "Presentation", keys: [
                 ["Ctrl+N", "New presentation"], ["Ctrl+O", "Open"], ["Ctrl+S", "Save"], ["Ctrl+Shift+S", "Save as"],
-                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"], ["Ctrl+Space / F5", "Present"], ["Esc", "Stop presenting"],
+                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"], ["Ctrl+Space / F5", "Present"], ["Ctrl+Alt+R", "Rehearse in Presenter View"], ["Esc", "Stop presenting"],
                 ["Space", "Play or pause video while presenting"] ] },
             { title: "View", keys: [
                 ["Ctrl+M", "Overview on or off"], ["Ctrl+.", "Markdown source on or off"],

@@ -20,6 +20,8 @@ QString withMedia(const QString &source, const QString &reference);
 QString withMediaDirectives(const QString &source, const QStringList &remove,
                             const QStringList &add);
 QString speakerNotes(const QString &source);
+// The talk's length from <!-- hype: duration="20m" -->, in seconds: 0 without one, -1 if unreadable.
+int talkDuration(const QString &source);
 Media parseMedia(const QString &source, const QString &base);
 QString ensurePoster(const QString &video, const QString &base);
 QStringList slideProblems(const QString &source, const QString &base);

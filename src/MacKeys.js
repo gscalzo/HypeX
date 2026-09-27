@@ -23,6 +23,7 @@ function label(text) {
         .replace(/Ctrl\+M\b/g, "⌘0")
         .replace(/^(Delete|Del)$/, "⌫")
         .replace(/^Enter$/, "Return")
+        .replace(/Ctrl\+Alt\+/g, "⌥⌘")
         .replace(/Ctrl\+Shift\+/g, "⇧⌘")
         .replace(/Ctrl\+/g, "⌘")
         .replace(/Shift\+/g, "⇧")

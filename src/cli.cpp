@@ -83,6 +83,16 @@ QList<Problem> findProblems(const Deck &deck) {
         problems << Problem{0, headerLine("font"), false,
                             "Font " + deck.fontName() + " is not installed by default on Omarchy"};
 #endif
+    for (int i = 0; i < deck.count(); ++i) {
+        const int duration = talkDuration(deck.slide(i));
+        const int line = firstLine(source, parsed.slides[i]);
+        if (duration < 0)
+            problems << Problem{i + 1, line, false,
+                                "Unreadable duration; write it as 20m, 1h 30m or 25:00"};
+        else if (duration > 0 && i > 0)
+            problems << Problem{i + 1, line, false,
+                                "The talk's duration only counts on the first slide"};
+    }
     QList<int> indices;
     for (int i = 0; i < deck.count(); ++i)
         indices << i;

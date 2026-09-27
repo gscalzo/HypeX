@@ -31,6 +31,9 @@
 #include <QQuickWindow>
 #include <QQuickItemGrabResult>
 #include <QSettings>
+#include <QFont>
+#include <QQuickItem>
+#include <QStyleHints>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QSemaphore>
@@ -154,6 +157,30 @@ class HypeTests : public QObject {
         deck.editSlide("<!-- First note -->\n\n<!-- hype: background=\"#112233\" -->\n\n# Title\n\n"
                        "```html\n<!-- Shown as code, not a note -->\n```\n\n<!-- Second\nline -->");
         QCOMPARE(deck.speakerNotes(), QString("First note\n\nSecond\nline"));
+    }
+    void talkDurationFromTheFirstSlide() {
+        auto duration = [](const QString &value) {
+            return talkDuration("<!-- hype: duration=\"" + value + "\" -->\n\n# Title\n");
+        };
+        QCOMPARE(duration("20"), 20 * 60);
+        QCOMPARE(duration("20m"), 20 * 60);
+        QCOMPARE(duration("45 min"), 45 * 60);
+        QCOMPARE(duration("1h 30m"), 90 * 60);
+        QCOMPARE(duration("1h"), 3600);
+        QCOMPARE(duration("90s"), 90);
+        QCOMPARE(duration("25:00"), 25 * 60);
+        QCOMPARE(duration("1:05:30"), 3600 + 5 * 60 + 30);
+        QCOMPARE(duration("soon"), -1);
+        QCOMPARE(duration("0"), -1);
+        QCOMPARE(duration("25:75"), -1);
+        QCOMPARE(talkDuration("# Title\n"), 0);
+        QCOMPARE(talkDuration("```html\n<!-- hype: duration=\"20m\" -->\n```\n"), 0);
+        Deck deck;
+        deck.editSource("<!-- hype: duration=\"20m\" -->\n\n# First\n\n---\n\n# Second\n");
+        QCOMPARE(deck.talkDuration(), 20 * 60);
+        QVERIFY(deck.speakerNotes().isEmpty());
+        deck.editSource("# First\n\n---\n\n<!-- hype: duration=\"20m\" -->\n\n# Second\n");
+        QCOMPARE(deck.talkDuration(), 0);
     }
     void followsDesktopTheme() {
         QTemporaryDir files;
@@ -673,6 +700,123 @@ class HypeTests : public QObject {
         QVERIFY(!presenterWindow->isVisible());
         QTRY_VERIFY(window->visibility() != QWindow::FullScreen);
         QTRY_VERIFY(window->property("popupOpen").toBool());
+        window->setProperty("allowClose", true);
+        window->close();
+    }
+    void talkClockStartsWhenTheShowLeavesTheFirstSlide() {
+        if (!qEnvironmentVariableIsSet("HYPE_GUI_TESTS")) QSKIP("Set HYPE_GUI_TESTS=1");
+        Deck deck;
+        deck.editSource("<!-- hype: duration=\"20m\" -->\n# First\n---\n# Second\n---\n# Last\n");
+        QQuickStyle::setStyle("Basic");
+        qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");
+        qmlRegisterType<AppTheme>("Hype", 1, 0, "AppTheme");
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("deck", &deck);
+        engine.addImageProvider("slides", new Thumbnails(&deck));
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        auto clock = window->findChild<QObject *>("talkClock");
+        QVERIFY(clock);
+        deck.select(0);
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QCOMPARE(clock->property("text").toString(), QString("20:00"));
+        QCOMPARE(window->property("talkStart").toDouble(), 0.0);
+        deck.select(1);
+        const double start = window->property("talkStart").toDouble();
+        QVERIFY(start > 0);
+        window->setProperty("talkNow", start + 61 * 1000);
+        QCOMPARE(clock->property("text").toString(), QString("18:59"));
+        window->setProperty("talkNow", start + 21 * 60 * 1000);
+        QCOMPARE(clock->property("text").toString(), QString("+1:00"));
+        // Going back to the title slide keeps the clock running; a new show starts it over.
+        deck.select(0);
+        QCOMPARE(window->property("talkStart").toDouble(), start);
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QCOMPARE(window->property("talkStart").toDouble(), 0.0);
+        QCOMPARE(clock->property("text").toString(), QString("20:00"));
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        window->setProperty("allowClose", true);
+        window->close();
+    }
+    void rehearsingShowsOnlyPresenterViewWithSizableNotes() {
+        if (!qEnvironmentVariableIsSet("HYPE_GUI_TESTS")) QSKIP("Set HYPE_GUI_TESTS=1");
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+        const QVariant savedSize = settings.value("presenter/notesSize");
+        const QVariant savedShare = settings.value("presenter/slidesShare");
+        Deck deck;
+        deck.editSource("# First\n<!-- say hello -->\n---\n# Second\n");
+        deck.setPresenterNotesSize(24);
+        deck.setPresenterSlidesShare(0.3);
+        QQuickStyle::setStyle("Basic");
+        qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");
+        qmlRegisterType<AppTheme>("Hype", 1, 0, "AppTheme");
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("deck", &deck);
+        engine.addImageProvider("slides", new Thumbnails(&deck));
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->show();
+        auto presenter = qobject_cast<QQuickWindow *>(window->findChild<QObject *>("presenterWindow"));
+        auto notes = window->findChild<QObject *>("presenterNotes");
+        auto larger = window->findChild<QObject *>("notesLarger");
+        QVERIFY(presenter && notes && larger);
+        // Holding the play button offers Rehearse without starting the show.
+        auto play = qobject_cast<QQuickItem *>(window->findChild<QObject *>("presentButton"));
+        auto menu = window->findChild<QObject *>("presentMenu");
+        QVERIFY(play && menu);
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        const QPoint centre = play->mapToScene(QPointF(play->width() / 2, play->height() / 2)).toPoint();
+        QTest::mousePress(window, Qt::LeftButton, {}, centre);
+        QTest::qWait(QGuiApplication::styleHints()->mousePressAndHoldInterval() + 200);
+        QTest::mouseRelease(window, Qt::LeftButton, {}, centre);
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QVERIFY(!window->property("presenting").toBool());
+        QMetaObject::invokeMethod(menu, "close");
+        QTRY_VERIFY(!menu->property("visible").toBool());
+        QTest::mouseClick(window, Qt::LeftButton, {}, centre);
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(!window->property("rehearsing").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QTRY_VERIFY(!window->property("presenting").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(window->property("rehearsing").toBool());
+        QVERIFY(presenter->isVisible());
+        QVERIFY(window->visibility() != QWindow::FullScreen);
+        QCOMPARE(notes->property("font").value<QFont>().pixelSize(), 24);
+        QVERIFY(QMetaObject::invokeMethod(larger, "clicked"));
+        QCOMPARE(deck.presenterNotesSize(), 28);
+        QCOMPARE(notes->property("font").value<QFont>().pixelSize(), 28);
+        QCOMPARE(Deck().presenterNotesSize(), 28);
+        // Dragging the divider up gives the notes more room, and HypeX remembers it.
+        QVERIFY(QTest::qWaitForWindowExposed(presenter));
+        auto divider = qobject_cast<QQuickItem *>(window->findChild<QObject *>("notesDivider"));
+        auto current = qobject_cast<QQuickItem *>(window->findChild<QObject *>("presenterCurrent"));
+        QVERIFY(divider && current);
+        const double before = current->height();
+        const QPoint grip = divider->mapToScene(QPointF(divider->width() / 2, divider->height() / 2)).toPoint();
+        QTest::mousePress(presenter, Qt::LeftButton, {}, grip);
+        for (int i = 1; i <= 10; ++i)
+            QTest::mouseMove(presenter, grip - QPoint(0, 8 * i));
+        QTest::mouseRelease(presenter, Qt::LeftButton, {}, grip - QPoint(0, 80));
+        QTRY_VERIFY(current->height() < before - 40);
+        QVERIFY(deck.presenterSlidesShare() < 0.3);
+        QCOMPARE(Deck().presenterSlidesShare(), deck.presenterSlidesShare());
+        // Rehearsing again while a show runs does nothing; ending it hides Presenter View.
+        QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QVERIFY(!window->property("presenting").toBool());
+        QVERIFY(!window->property("rehearsing").toBool());
+        QVERIFY(!presenter->isVisible());
+        QVERIFY(window->isVisible());
+        if (savedSize.isValid()) settings.setValue("presenter/notesSize", savedSize);
+        else settings.remove("presenter/notesSize");
+        if (savedShare.isValid()) settings.setValue("presenter/slidesShare", savedShare);
+        else settings.remove("presenter/slidesShare");
         window->setProperty("allowClose", true);
         window->close();
     }

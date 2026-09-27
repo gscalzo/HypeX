@@ -225,6 +225,7 @@ static QString withoutSlidePadding(QString text) {
 }
 QString Deck::slideText() const { return withoutSlidePadding(slideSource()); }
 QString Deck::speakerNotes() const { return ::speakerNotes(slideSource()); }
+int Deck::talkDuration() const { return count() ? qMax(0, ::talkDuration(slide(0))) : 0; }
 QString Deck::slide(int i) const {
     return i >= 0 && i < count() ? m_parsed.slides[i].source : QString();
 }
@@ -630,6 +631,32 @@ QString Deck::dialogDirectory() const {
         return baseDir();
     const QString documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     return !documents.isEmpty() && QDir(documents).exists() ? documents : QDir::homePath();
+}
+// Presenter View's notes size is the presenter's, not the deck's, so it lives in settings.
+int Deck::presenterNotesSize() const {
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    return qBound(12, settings.value("presenter/notesSize", 24).toInt(), 72);
+}
+void Deck::setPresenterNotesSize(int size) {
+    size = qBound(12, size, 72);
+    if (size == presenterNotesSize())
+        return;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    settings.setValue("presenter/notesSize", size);
+    emit presenterNotesSizeChanged();
+}
+// The share of Presenter View's height the slides take, above the notes.
+double Deck::presenterSlidesShare() const {
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    return qBound(0.12, settings.value("presenter/slidesShare", 0.3).toDouble(), 0.6);
+}
+void Deck::setPresenterSlidesShare(double share) {
+    share = qBound(0.12, share, 0.6);
+    if (qFuzzyCompare(share, presenterSlidesShare()))
+        return;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    settings.setValue("presenter/slidesShare", share);
+    emit presenterSlidesShareChanged();
 }
 static void rememberPresentation(const QString &path) {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");

@@ -111,6 +111,20 @@ To see them, connect an external display and press **⌥⌘P**: the slides fill 
 
 Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
 
+To practise without an audience display, hold the **Present** button and choose **Rehearse** (or press **⌥⌘R**): Presenter View fills your screen, with its clock, as it will on stage. Drag the line between the slides and the notes to give the notes more room (double-click it to reset), and use **A−** and **A+** in the notes' corner (or **⌘−** and **⌘=**) to change their size. HypeX remembers both.
+
+### Time your talk
+
+Give the talk a length on its first slide, and Presenter View counts it down in large digits in its top bar:
+
+```markdown
+<!-- hype: duration="20m" -->
+
+# My talk
+```
+
+The clock waits on your title slide and starts when you move to the next one. It turns to the accent colour for the last two minutes and to red once you run over, counting the extra time as `+1:05`. Write the length as `20m`, `45 min`, `1h 30m`, `90s`, `25:00`, or a plain number of minutes. `hype check` warns about a length it can't read, or one on any slide but the first. Hype on Omarchy ignores the comment.
+
 ## Add images and video
 
 Paste an image with **⌘V**, drag a file onto the preview, or use **Media**. Media lives beside the Markdown file and is referenced by filename:
@@ -218,6 +232,8 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | ⌘E | Export as PDF |
 | ⇧⌘E | Export as PowerPoint |
 | ⌥⌘P or F5 | Present |
+| ⌥⌘R | Rehearse in Presenter View |
+| ⌘− / ⌘= | Smaller / larger notes in Presenter View |
 | Esc | Stop presenting |
 | Space | Play or pause video while presenting |
 | ⌘0 | Overview on / off |

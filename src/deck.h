@@ -30,6 +30,7 @@ class Deck : public QAbstractListModel {
     Q_PROPERTY(QString slideSource READ slideSource NOTIFY changed)
     Q_PROPERTY(QString slideText READ slideText NOTIFY changed)
     Q_PROPERTY(QString speakerNotes READ speakerNotes NOTIFY changed)
+    Q_PROPERTY(int talkDuration READ talkDuration NOTIFY changed)
     Q_PROPERTY(int selected READ selected WRITE select NOTIFY changed)
     Q_PROPERTY(int selectionFirst READ selectionFirst NOTIFY changed)
     Q_PROPERTY(int selectionLast READ selectionLast NOTIFY changed)
@@ -48,6 +49,8 @@ class Deck : public QAbstractListModel {
     Q_PROPERTY(bool exportFailed READ exportFailed NOTIFY exportChanged)
     Q_PROPERTY(QStringList fontNames READ fontNames CONSTANT)
     Q_PROPERTY(QString fontName READ fontName NOTIFY changed)
+    Q_PROPERTY(int presenterNotesSize READ presenterNotesSize WRITE setPresenterNotesSize NOTIFY presenterNotesSizeChanged)
+    Q_PROPERTY(double presenterSlidesShare READ presenterSlidesShare WRITE setPresenterSlidesShare NOTIFY presenterSlidesShareChanged)
     Q_PROPERTY(QStringList themeNames READ themeNames CONSTANT)
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed)
     Q_PROPERTY(QColor background READ background NOTIFY changed)
@@ -73,6 +76,7 @@ class Deck : public QAbstractListModel {
     QString slideSource() const;
     QString slideText() const;
     QString speakerNotes() const;
+    int talkDuration() const; // Seconds, from the first slide; 0 without a valid one.
     int selected() const { return m_selected; }
     int selectionFirst() const { return qMin(m_anchor, m_selected); }
     int selectionLast() const { return qMax(m_anchor, m_selected); }
@@ -88,6 +92,10 @@ class Deck : public QAbstractListModel {
     QStringList fontNames() const;
     QString fontName() const;
     Q_INVOKABLE void chooseFont(const QString &family);
+    int presenterNotesSize() const;
+    void setPresenterNotesSize(int size);
+    double presenterSlidesShare() const;
+    void setPresenterSlidesShare(double share);
     QStringList themeNames() const;
     QString themeName() const;
     QColor background() const;
@@ -143,6 +151,8 @@ class Deck : public QAbstractListModel {
   signals:
     void changed();
     void statusChanged();
+    void presenterNotesSizeChanged();
+    void presenterSlidesShareChanged();
     void opened(bool existing);
     void compressingImageChanged();
     void exportChanged();

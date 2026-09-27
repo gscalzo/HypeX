@@ -76,6 +76,16 @@ class CliTests(unittest.TestCase):
         self.assertTrue(report['ok'])
         self.assertEqual([(p['slide'], p['severity']) for p in report['problems']], [(2, 'warning')])
 
+    def test_check_warns_about_the_talk_duration(self):
+        self.write('<!-- hype: duration="20m" -->\n\n# One\n\n---\n\n# Two\n')
+        self.assertEqual(json.loads(self.hype('check', self.deck, '--json').stdout)['problems'], [])
+        self.write('<!-- hype: duration="soon" -->\n\n# One\n\n---\n\n<!-- hype: duration="5m" -->\n\n# Two\n')
+        report = json.loads(self.hype('check', self.deck, '--json').stdout)
+        self.assertTrue(report['ok'])
+        self.assertEqual([(p['slide'], p['severity'], p['message']) for p in report['problems']],
+                         [(1, 'warning', 'Unreadable duration; write it as 20m, 1h 30m or 25:00'),
+                          (2, 'warning', "The talk's duration only counts on the first slide")])
+
     def test_slides_outlines_the_presentation(self):
         self.write('---\ntitle: Talk\n---\n\n' + DECK + '\n---\n\n![fit](photo.png)\n\nJust words\n')
         outline = json.loads(self.hype('slides', self.deck, '--json').stdout)
