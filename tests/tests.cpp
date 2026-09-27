@@ -31,6 +31,7 @@
 #include <QQuickWindow>
 #include <QQuickItemGrabResult>
 #include <QSettings>
+#include <QFont>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QSemaphore>
@@ -734,6 +735,50 @@ class HypeTests : public QObject {
         QCOMPARE(window->property("talkStart").toDouble(), 0.0);
         QCOMPARE(clock->property("text").toString(), QString("20:00"));
         QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        window->setProperty("allowClose", true);
+        window->close();
+    }
+    void rehearsingShowsOnlyPresenterViewWithSizableNotes() {
+        if (!qEnvironmentVariableIsSet("HYPE_GUI_TESTS")) QSKIP("Set HYPE_GUI_TESTS=1");
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+        const QVariant savedSize = settings.value("presenter/notesSize");
+        Deck deck;
+        deck.editSource("# First\n<!-- say hello -->\n---\n# Second\n");
+        deck.setPresenterNotesSize(24);
+        QQuickStyle::setStyle("Basic");
+        qmlRegisterType<SlideItem>("Hype", 1, 0, "SlideCanvas");
+        qmlRegisterType<AppTheme>("Hype", 1, 0, "AppTheme");
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("deck", &deck);
+        engine.addImageProvider("slides", new Thumbnails(&deck));
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->show();
+        auto presenter = qobject_cast<QQuickWindow *>(window->findChild<QObject *>("presenterWindow"));
+        auto notes = window->findChild<QObject *>("presenterNotes");
+        auto larger = window->findChild<QObject *>("notesLarger");
+        QVERIFY(presenter && notes && larger);
+        QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(window->property("rehearsing").toBool());
+        QVERIFY(presenter->isVisible());
+        QVERIFY(window->visibility() != QWindow::FullScreen);
+        QCOMPARE(notes->property("font").value<QFont>().pixelSize(), 24);
+        QVERIFY(QMetaObject::invokeMethod(larger, "clicked"));
+        QCOMPARE(deck.presenterNotesSize(), 28);
+        QCOMPARE(notes->property("font").value<QFont>().pixelSize(), 28);
+        QCOMPARE(Deck().presenterNotesSize(), 28);
+        // Rehearsing again while a show runs does nothing; ending it hides Presenter View.
+        QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QVERIFY(!window->property("presenting").toBool());
+        QVERIFY(!window->property("rehearsing").toBool());
+        QVERIFY(!presenter->isVisible());
+        QVERIFY(window->isVisible());
+        if (savedSize.isValid()) settings.setValue("presenter/notesSize", savedSize);
+        else settings.remove("presenter/notesSize");
         window->setProperty("allowClose", true);
         window->close();
     }

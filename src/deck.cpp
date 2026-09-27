@@ -632,6 +632,19 @@ QString Deck::dialogDirectory() const {
     const QString documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     return !documents.isEmpty() && QDir(documents).exists() ? documents : QDir::homePath();
 }
+// Presenter View's notes size is the presenter's, not the deck's, so it lives in settings.
+int Deck::presenterNotesSize() const {
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    return qBound(12, settings.value("presenter/notesSize", 24).toInt(), 72);
+}
+void Deck::setPresenterNotesSize(int size) {
+    size = qBound(12, size, 72);
+    if (size == presenterNotesSize())
+        return;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
+    settings.setValue("presenter/notesSize", size);
+    emit presenterNotesSizeChanged();
+}
 static void rememberPresentation(const QString &path) {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "hype", "hype");
     settings.setValue("files/lastDirectory", QFileInfo(path).absolutePath());

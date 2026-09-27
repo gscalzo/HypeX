@@ -61,6 +61,8 @@ ApplicationWindow {
     property bool syncingEditor: false
     property bool editingSlide: false
     property bool presenting: false
+    // Rehearsing shows only Presenter View, on this display, like Keynote's Rehearse Slideshow.
+    property bool rehearsing: false
     readonly property bool popupOpen: pasteDialog.visible || compressionDialog.visible ||
         historyDialog.visible || closeDialog.visible || shortcutsOverlay.visible || themes.popup.visible || fonts.popup.visible ||
         slideMenu.visible || fileMenu.visible || slideBar.menuOpen || sourceBar.menuOpen
@@ -98,11 +100,28 @@ ApplicationWindow {
         interval: 250; repeat: true; running: win.presenting && win.talkStart > 0
         onTriggered: win.talkNow = Date.now()
     }
-    function togglePresent() {
+    function togglePresent() { toggleShow(false) }
+    function rehearse() {
+        if (!presenting) toggleShow(true)
+    }
+    function toggleShow(rehearse) {
+        const wasRehearsing = rehearsing
+        rehearsing = !presenting && !!rehearse
         presenting = !presenting
         talkFrom = deck.selected
         talkStart = 0
-        console.info("[HypeX] presenting: " + presenting)
+        console.info("[HypeX] presenting: " + presenting + (rehearsing ? " (rehearsal)" : ""))
+        if (rehearsing) {
+            moveOnto(presenterWindow, win.screen)
+            if (MacKeys.mac) presenterWindow.showMaximized()
+            else presenterWindow.showFullScreen()
+            Qt.callLater(function() { presenterWindow.requestActivate() })
+            return
+        }
+        if (!presenting && wasRehearsing) {
+            presenterWindow.hide()
+            return
+        }
         if (presenting) {
             presentationReturnScreen = win.screen
             presentationReturnVisibility = win.visibility
@@ -378,7 +397,7 @@ ApplicationWindow {
                 player.stop()
                 video.clearOutput()
                 player.source = nextVideo
-                if (win.presenting && deck.media.video && deck.media.autoplay) player.play()
+                if (win.presenting && !win.rehearsing && deck.media.video && deck.media.autoplay) player.play()
             }
         }
         function onModelAboutToBeReset() {
@@ -389,7 +408,7 @@ ApplicationWindow {
         function onModelReset() { Qt.callLater(thumbnails.revealSelection) }
         function onOpened(existing) { Qt.callLater(function() { win.focusForDeck(existing) }) }
     }
-    onPresentingChanged: { if (presenting && deck.media.video && deck.media.autoplay) player.play() }
+    onPresentingChanged: { if (presenting && !rehearsing && deck.media.video && deck.media.autoplay) player.play() }
     onClosing: function(close) {
         if (!allowClose && !deck.flushAutosave() && deck.dirty) {
             close.accepted = false
@@ -399,6 +418,7 @@ ApplicationWindow {
         }
         if (presenting) {
             presenting = false
+            rehearsing = false
             presenterWindow.hide()
             player.stop()
         }
@@ -433,6 +453,11 @@ ApplicationWindow {
                 Label {
                     text: deck.title; color: win.ui.foreground; font.pixelSize: 22; font.bold: true
                     Layout.fillWidth: true; elide: Text.ElideRight
+                }
+                Label {
+                    visible: win.rehearsing
+                    text: "REHEARSAL"; color: win.ui.accent; font.pixelSize: 12; font.bold: true
+                    Layout.rightMargin: 16
                 }
                 Label {
                     visible: deck.talkDuration > 0; Layout.alignment: Qt.AlignBaseline
@@ -510,7 +535,12 @@ ApplicationWindow {
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: win.ui.border }
-            Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 6
+                Label { text: "SPEAKER NOTES"; color: win.ui.muted; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
+                NotesSizeButton { objectName: "notesSmaller"; text: "A−"; step: -4; description: "Smaller notes (Ctrl+-)" }
+                NotesSizeButton { objectName: "notesLarger"; text: "A+"; step: 4; description: "Larger notes (Ctrl+=)" }
+            }
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 Layout.preferredWidth: 0; Layout.preferredHeight: 0; clip: true
@@ -519,7 +549,7 @@ ApplicationWindow {
                     objectName: "presenterNotes"; readOnly: true; selectByMouse: true
                     text: deck.speakerNotes || "No speaker notes for this slide."
                     color: deck.speakerNotes ? win.ui.foreground : win.ui.muted
-                    font.pixelSize: 24; wrapMode: TextEdit.Wrap
+                    font.pixelSize: deck.presenterNotesSize; wrapMode: TextEdit.Wrap
                     leftPadding: 24; rightPadding: 24; topPadding: 20; bottomPadding: 20
                     background: null
                 }
@@ -687,6 +717,9 @@ ApplicationWindow {
     Shortcut { sequences: ["Return", "Enter"]; enabled: !win.popupOpen && !deck.compressingImage && win.overview && !win.presenting; onActivated: win.focusMarkdown() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequence: "Ctrl+N"; onActivated: deck.newDeck() }
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: MacKeys.present; context: win.presenting ? Qt.ApplicationShortcut : Qt.WindowShortcut; autoRepeat: false; onActivated: win.togglePresent() }
+    Shortcut { sequence: "Ctrl+Alt+R"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting; autoRepeat: false; onActivated: win.rehearse() }
+    Shortcut { sequences: ["Ctrl+=", "Ctrl++"]; context: Qt.ApplicationShortcut; enabled: win.presenting && presenterWindow.visible; onActivated: deck.presenterNotesSize += 4 }
+    Shortcut { sequence: "Ctrl+-"; context: Qt.ApplicationShortcut; enabled: win.presenting && presenterWindow.visible; onActivated: deck.presenterNotesSize -= 4 }
     Shortcut { sequence: "Escape"; context: Qt.ApplicationShortcut; enabled: !win.popupOpen && !deck.compressingImage && win.presenting; onActivated: win.togglePresent() }
     Shortcut { sequence: "Ctrl+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.undo() }
     Shortcut { sequence: "Ctrl+Shift+Z"; enabled: !win.popupOpen && !deck.compressingImage && (!slideEditor.activeFocus && !sourceEditor.activeFocus); onActivated: deck.redo() }
@@ -737,6 +770,22 @@ ApplicationWindow {
             radius: win.softRadius
             color: toolbarButton.primary ? (toolbarButton.lit ? win.ui.accentHover : win.ui.accent) : toolbarButton.lit ? win.ui.hover : "transparent"
         }
+    }
+    component NotesSizeButton: Button {
+        required property int step
+        required property string description
+        focusPolicy: Qt.NoFocus
+        enabled: step < 0 ? deck.presenterNotesSize > 12 : deck.presenterNotesSize < 72
+        onClicked: deck.presenterNotesSize += step
+        Accessible.name: description
+        ToolTip.visible: hovered; ToolTip.text: MacKeys.label(description)
+        implicitWidth: 34; implicitHeight: 26
+        contentItem: Text {
+            text: parent.text; color: win.ui.foreground; opacity: parent.enabled ? 1 : 0.4
+            font.pixelSize: parent.step < 0 ? 12 : 15; font.bold: true
+            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+        }
+        background: Rectangle { color: parent.hovered ? win.ui.hover : win.ui.button; radius: win.softRadius; border.color: win.ui.border }
     }
     component EditorButton: ToolButton {
         id: editorButton
@@ -1058,6 +1107,17 @@ ApplicationWindow {
                 objectName: "presentButton"; iconName: "present"; description: "Present (Ctrl+Space)"; primary: true
                 onClicked: win.togglePresent()
             }
+            ToolbarIconButton {
+                objectName: "presentMenuButton"; iconName: "chevron-down"; description: "Present or rehearse"; primary: true
+                Layout.leftMargin: 2; Layout.preferredWidth: 22
+                dropdown: presentMenu
+                AppMenu {
+                    id: presentMenu; objectName: "presentMenu"
+                    y: parent.height + 4
+                    AppMenuItem { text: "Present"; hint: "Ctrl+Space"; onTriggered: win.togglePresent() }
+                    AppMenuItem { text: "Rehearse"; hint: "Ctrl+Alt+R"; onTriggered: win.rehearse() }
+                }
+            }
         }
     }
     Popup {
@@ -1070,7 +1130,7 @@ ApplicationWindow {
         readonly property var groups: [
             { title: "Presentation", keys: [
                 ["Ctrl+N", "New presentation"], ["Ctrl+O", "Open"], ["Ctrl+S", "Save"], ["Ctrl+Shift+S", "Save as"],
-                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"], ["Ctrl+Space / F5", "Present"], ["Esc", "Stop presenting"],
+                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"], ["Ctrl+Space / F5", "Present"], ["Ctrl+Alt+R", "Rehearse in Presenter View"], ["Esc", "Stop presenting"],
                 ["Space", "Play or pause video while presenting"] ] },
             { title: "View", keys: [
                 ["Ctrl+M", "Overview on or off"], ["Ctrl+.", "Markdown source on or off"],

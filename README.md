@@ -111,6 +111,8 @@ To see them, connect an external display and press **⌥⌘P**: the slides fill 
 
 Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
 
+To practise without an audience display, choose **Rehearse** from the menu beside **Present** (or press **⌥⌘R**): Presenter View fills your screen, with its clock, as it will on stage. **A−** and **A+** above the notes (or **⌘−** and **⌘=**) change their size, and HypeX remembers it.
+
 ### Time your talk
 
 Give the talk a length on its first slide, and Presenter View counts it down in large digits in its top bar:
@@ -230,6 +232,8 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | ⌘E | Export as PDF |
 | ⇧⌘E | Export as PowerPoint |
 | ⌥⌘P or F5 | Present |
+| ⌥⌘R | Rehearse in Presenter View |
+| ⌘− / ⌘= | Smaller / larger notes in Presenter View |
 | Esc | Stop presenting |
 | Space | Play or pause video while presenting |
 | ⌘0 | Overview on / off |
