@@ -111,7 +111,7 @@ To see them, connect an external display and press **⌥⌘P**: the slides fill 
 
 Notes also travel into a [PowerPoint export](#export-to-powerpoint), formatted.
 
-To practise without an audience display, choose **Rehearse** from the menu beside **Present** (or press **⌥⌘R**): Presenter View fills your screen, with its clock, as it will on stage. **A−** and **A+** above the notes (or **⌘−** and **⌘=**) change their size, and HypeX remembers it.
+To practise without an audience display, hold the **Present** button and choose **Rehearse** (or press **⌥⌘R**): Presenter View fills your screen, with its clock, as it will on stage. **A−** and **A+** above the notes (or **⌘−** and **⌘=**) change their size, and HypeX remembers it.
 
 ### Time your talk
 

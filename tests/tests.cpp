@@ -32,6 +32,8 @@
 #include <QQuickItemGrabResult>
 #include <QSettings>
 #include <QFont>
+#include <QQuickItem>
+#include <QStyleHints>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QSemaphore>
@@ -759,6 +761,24 @@ class HypeTests : public QObject {
         auto notes = window->findChild<QObject *>("presenterNotes");
         auto larger = window->findChild<QObject *>("notesLarger");
         QVERIFY(presenter && notes && larger);
+        // Holding the play button offers Rehearse without starting the show.
+        auto play = qobject_cast<QQuickItem *>(window->findChild<QObject *>("presentButton"));
+        auto menu = window->findChild<QObject *>("presentMenu");
+        QVERIFY(play && menu);
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        const QPoint centre = play->mapToScene(QPointF(play->width() / 2, play->height() / 2)).toPoint();
+        QTest::mousePress(window, Qt::LeftButton, {}, centre);
+        QTest::qWait(QGuiApplication::styleHints()->mousePressAndHoldInterval() + 200);
+        QTest::mouseRelease(window, Qt::LeftButton, {}, centre);
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QVERIFY(!window->property("presenting").toBool());
+        QMetaObject::invokeMethod(menu, "close");
+        QTRY_VERIFY(!menu->property("visible").toBool());
+        QTest::mouseClick(window, Qt::LeftButton, {}, centre);
+        QVERIFY(window->property("presenting").toBool());
+        QVERIFY(!window->property("rehearsing").toBool());
+        QVERIFY(QMetaObject::invokeMethod(window, "togglePresent"));
+        QTRY_VERIFY(!window->property("presenting").toBool());
         QVERIFY(QMetaObject::invokeMethod(window, "rehearse"));
         QVERIFY(window->property("presenting").toBool());
         QVERIFY(window->property("rehearsing").toBool());

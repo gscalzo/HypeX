@@ -1103,14 +1103,11 @@ ApplicationWindow {
                     AppMenuItem { text: "Version history…"; onTriggered: historyDialog.open() }
                 }
             }
+            // Like Keynote's Play button: a click presents, holding it offers Rehearse.
             ToolbarIconButton {
-                objectName: "presentButton"; iconName: "present"; description: "Present (Ctrl+Space)"; primary: true
+                objectName: "presentButton"; iconName: "present"; description: "Present (Ctrl+Space) · hold to rehearse"; primary: true
                 onClicked: win.togglePresent()
-            }
-            ToolbarIconButton {
-                objectName: "presentMenuButton"; iconName: "chevron-down"; description: "Present or rehearse"; primary: true
-                Layout.leftMargin: 2; Layout.preferredWidth: 22
-                dropdown: presentMenu
+                onPressAndHold: presentMenu.open()
                 AppMenu {
                     id: presentMenu; objectName: "presentMenu"
                     y: parent.height + 4
