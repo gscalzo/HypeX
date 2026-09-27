@@ -3114,6 +3114,49 @@ class HypeTests : public QObject {
         highlightCode(plain, palette);
         QCOMPARE(plain.toPlainText(), original);
     }
+    void boldTextHasItsOwnFontAndColor() {
+        Deck deck;
+        deck.editSource("---\nfont: \"Arial\"\ncolor_accent: \"#6e6e6e\"\n---\n\n# Title\n\nNormal **Bold** normal\n");
+        auto formatOf = [](QTextDocument &doc, const QString &word) {
+            QTextCursor cursor(&doc);
+            cursor.setPosition(doc.toPlainText().indexOf(word) + 1);
+            return cursor.charFormat();
+        };
+        {
+            // Without bold settings, bold keeps the text font in the accent color.
+            QTextDocument doc;
+            layoutSlideText(doc, "Normal **Bold** normal", deck.palette(), 60, 1660, true, false);
+            QCOMPARE(formatOf(doc, "Bold").foreground().color(), QColor("#6e6e6e"));
+            QCOMPARE(formatOf(doc, "Bold").fontFamilies().toStringList(), QStringList{"Arial"});
+        }
+        deck.editSource("---\nfont: \"Arial\"\nbold_font: \"Arial Black\"\nbold_color: \"#d0021b\"\n"
+                        "color_accent: \"#6e6e6e\"\n---\n\n# Title **Big**\n\nNormal **Bold** normal\n");
+        QTextDocument doc;
+        layoutSlideText(doc, "# Title **Big**\n\nNormal **Bold** normal", deck.palette(), 60, 1660, true, false);
+        QCOMPARE(formatOf(doc, "Bold").foreground().color(), QColor("#d0021b"));
+        QCOMPARE(formatOf(doc, "Bold").fontFamilies().toStringList(), QStringList{"Arial Black"});
+        QCOMPARE(formatOf(doc, "Normal").foreground().color(), deck.foreground());
+        QCOMPARE(formatOf(doc, "Normal").fontFamilies().toStringList(), QStringList{"Arial"});
+        // Headlines stay as they were: bold in the text font and color.
+        QCOMPARE(formatOf(doc, "Big").fontFamilies().toStringList(), QStringList{"Arial"});
+        QCOMPARE(formatOf(doc, "Big").foreground().color(), deck.foreground());
+        // The rendered slide shows the bold color.
+        QImage image(960, 540, QImage::Format_ARGB32_Premultiplied);
+        QPainter painter(&image);
+        paintSlide(&painter, image.rect(), deck.slideSource(), deck.baseDir(), deck.palette());
+        painter.end();
+        int red = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                red += image.pixelColor(x, y) == QColor("#d0021b");
+        QVERIFY(red > 100);
+        // A theme replaces color_ keys but keeps the bold settings.
+        if (!deck.themeNames().isEmpty()) {
+            deck.chooseTheme(deck.themeNames().first());
+            QCOMPARE(deck.palette()["bold_color"].toString(), QString("#d0021b"));
+            QCOMPARE(deck.palette()["bold_font"].toString(), QString("Arial Black"));
+        }
+    }
     void headlineFormattingStaysLocal() {
         Deck deck;
         const QStringList markedWords{"_Ruby_", "*Ruby*", "**Ruby**", "~~Ruby~~", "`Ruby`"};

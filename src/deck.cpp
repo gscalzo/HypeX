@@ -551,6 +551,11 @@ QVariantMap Deck::palette() const {
             colors[key] = v;
     }
     colors["font"] = scalar(m_parsed.header, "font", "JetBrains Mono");
+    // Bold text can have its own font and color. They aren't color_ keys, so choosing a
+    // theme keeps them, and Hype, which doesn't know them, shows its usual bold.
+    colors["bold_font"] = scalar(m_parsed.header, "bold_font");
+    if (const QString bold = scalar(m_parsed.header, "bold_color"); QColor(bold).isValid())
+        colors["bold_color"] = bold;
     m_paletteHeader = m_parsed.header;
     m_paletteCache = colors;
     return colors;

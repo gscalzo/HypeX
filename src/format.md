@@ -33,6 +33,11 @@ overridden with a `#rrggbb` color: `color_background`, `color_foreground`,
 `color_accent`, `color_green`, `color_red`, `color_yellow`, `color_magenta`,
 `color_cyan`, `color_dark_foreground`.
 
+`**Bold**` text uses the accent color and the font's bold weight. To give it
+a font and color of its own, add `bold_font: "Arial Black"` and
+`bold_color: "#d0021b"`; either can be left out. Choosing a theme keeps
+them. Hype on Omarchy ignores them and shows its usual bold.
+
 ## Slides
 
 Separate slides with a line holding only `---`, with a blank line on either

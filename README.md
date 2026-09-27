@@ -173,6 +173,18 @@ The palette and font icons in the toolbar choose a theme and a presentation font
 
 Stick to fonts Omarchy installs by default (JetBrains Mono, Noto, iA Writer), or install the same font on both machines. `hype check` warns about any other.
 
+Bold text is drawn in the accent color. To style it your own way, as a Keynote deck might set its bold words in a heavier font and another color, add two lines to the front matter; either can be left out:
+
+```markdown
+---
+font: "Arial"
+bold_font: "Arial Black"
+bold_color: "#d0021b"
+---
+```
+
+`**Bold**` and **⌘B** then use them on every slide, in the PDF and in PowerPoint; headlines are unchanged. Choosing a theme keeps them, and Hype on Omarchy ignores them and shows its usual bold.
+
 ## Present and export
 
 Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. Presentation remotes work too: they send Page Down and Page Up, which move one slide at a time while presenting. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).
