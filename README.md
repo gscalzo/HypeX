@@ -185,6 +185,21 @@ bold_color: "#d0021b"
 
 `**Bold**` and **⌘B** then use them on every slide, in the PDF and in PowerPoint; headlines are unchanged. Choosing a theme keeps them, and Hype on Omarchy ignores them and shows its usual bold.
 
+### Place the text
+
+Text sits in the middle of the slide. Headlines center, and lists, quotes, code and tables start on the left. To move it, give the deck a default in the front matter:
+
+```markdown
+---
+alignment: left
+vertical_alignment: top
+---
+```
+
+and override it on any slide with a comment, say `<!-- hype: alignment="right" vertical_alignment="bottom" -->`. `alignment` takes `left`, `center` or `right`, and `vertical_alignment` takes `top`, `center` or `bottom`; `auto` on either brings back the usual placement for that slide. A deck-wide `alignment` applies to every slide, lists included. On an image slide the text moves over the picture; above a video or a diagram the headline keeps its band at the top. `hype check` warns about a value it can't read, and about a slide that asks a video or diagram headline to move.
+
+Hype on Omarchy reads a slide's `alignment="left"` and `"center"` but ignores the rest, so the deck presents there with its text centered vertically and the automatic alignment.
+
 ## Present and export
 
 Click **Present** or press **⌥⌘P** (or **F5**) to present full screen. Use the arrows to move between slides, Space to play or pause video, and Escape to stop. Presentation remotes work too: they send Page Down and Page Up, which move one slide at a time while presenting. With an external display, the slides go to that display and **Presenter View** opens on the Mac's own screen with the current slide, the next one, and your [notes](#add-presenter-notes).

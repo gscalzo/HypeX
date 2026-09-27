@@ -45,8 +45,9 @@ diagrams, for this version of Hype.
   words in their own style, such as a heavier face in red, `bold_font` and
   `bold_color`; `**bold**` in the text then uses them. Do not use HTML or inline
   styles for this.
-- One slide's colors or alignment: `<!-- hype: background="#000000" -->`,
-  `foreground`, `alignment="left"`.
+- Where text sits, such as top left: `alignment` and `vertical_alignment` in the
+  front matter for the whole deck, or in one slide's `hype:` comment.
+- One slide's colors: `<!-- hype: background="#000000" -->`, `foreground`.
 - Prefer fonts Omarchy installs (JetBrains Mono, Noto, iA Writer); `hype check`
   warns about others, so mention it if the person asked for one.
 

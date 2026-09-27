@@ -86,6 +86,20 @@ class CliTests(unittest.TestCase):
                          [(1, 'warning', 'Unreadable duration; write it as 20m, 1h 30m or 25:00'),
                           (2, 'warning', "The talk's duration only counts on the first slide")])
 
+    def test_check_warns_about_text_placement(self):
+        diagram = '# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```\n'
+        self.write('---\nalignment: left\nvertical_alignment: top\n---\n\n<!-- hype: alignment="right" -->\n\n# One\n\n---\n\n'
+                   + diagram + '\n---\n\n<!-- hype: vertical_alignment="auto" -->\n\n' + diagram)
+        self.assertEqual(json.loads(self.hype('check', self.deck, '--json').stdout)['problems'], [])
+        self.write('---\nalignment: middle\n---\n\n<!-- hype: vertical_alignment="up" -->\n\n# One\n\n---\n\n'
+                   '<!-- hype: vertical_alignment="bottom" -->\n\n' + diagram)
+        report = json.loads(self.hype('check', self.deck, '--json').stdout)
+        self.assertTrue(report['ok'])
+        self.assertEqual([(p['slide'], p['line'], p['message']) for p in report['problems']],
+                         [(None, 2, 'Unreadable alignment middle; write it as auto, left, center or right'),
+                          (1, 5, 'Unreadable vertical_alignment up; write it as auto, top, center or bottom'),
+                          (2, 11, 'A video or diagram keeps its headline at the top; vertical_alignment has no effect here')])
+
     def test_check_warns_about_bold_settings(self):
         self.write('---\nfont: "JetBrains Mono"\nbold_color: "reddish"\nbold_font: "Arial Black"\n---\n\n# One **two**\n')
         report = json.loads(self.hype('check', self.deck, '--json').stdout)

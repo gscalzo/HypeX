@@ -22,11 +22,13 @@ QString withMediaDirectives(const QString &source, const QStringList &remove,
 QString speakerNotes(const QString &source);
 // The talk's length from <!-- hype: duration="20m" -->, in seconds: 0 without one, -1 if unreadable.
 int talkDuration(const QString &source);
+// A slide's own <!-- hype: key="…" --> value, ignoring code; empty when the slide doesn't set it.
+QString slideSetting(const QString &source, const QString &key);
 Media parseMedia(const QString &source, const QString &base);
 QString ensurePoster(const QString &video, const QString &base);
 QStringList slideProblems(const QString &source, const QString &base);
 void layoutSlideText(QTextDocument &document, const QString &markdown, const QVariantMap &palette,
-                     qreal fontSize, qreal width, bool centered, bool code);
+                     qreal fontSize, qreal width, Qt::Alignment alignment, bool code);
 void paintSlide(QPainter *painter, const QRectF &target, const QString &source, const QString &base,
                 const QVariantMap &palette, QString *warning = nullptr, bool overlayOnly = false,
                 bool backgroundOnly = false);

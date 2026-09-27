@@ -471,6 +471,9 @@ static QString slideProperty(const QString &source, const QString &key) {
     QRegularExpression re("<!--\\s*hype:[\\s\\S]*?\\b" + key + "=\"([^\"]*)\"[\\s\\S]*?-->");
     return re.match(source).captured(1);
 }
+QString slideSetting(const QString &source, const QString &key) {
+    return slideProperty(outsideCode(source), key);
+}
 int talkDuration(const QString &source) {
     const QString value = slideProperty(outsideCode(source), "duration").trimmed().toLower();
     if (value.isEmpty())
@@ -504,7 +507,7 @@ static QString preserveLineBreaks(QString markdown) {
     return lines.join('\n');
 }
 static void sizeSlideText(QTextDocument &doc, const QVariantMap &palette, qreal fontSize,
-                          qreal width, bool centered, bool code) {
+                          qreal width, Qt::Alignment alignment, bool code) {
     // A null page size suspends layout while every format below changes; the
     // final setTextWidth lays the document out once instead of once per run.
     doc.setPageSize(QSizeF(0, 0));
@@ -525,7 +528,7 @@ static void sizeSlideText(QTextDocument &doc, const QVariantMap &palette, qreal 
         QTextCursor cursor(block);
         QTextBlockFormat bf = block.blockFormat();
         int level = bf.headingLevel();
-        bf.setAlignment(centered ? Qt::AlignHCenter : Qt::AlignLeft);
+        bf.setAlignment(alignment);
         bf.setTopMargin(level ? fontSize * 0.15 : 0);
         bf.setBottomMargin(fontSize * 0.22);
         bf.setLineHeight(115, QTextBlockFormat::ProportionalHeight);
@@ -580,10 +583,10 @@ static void sizeSlideText(QTextDocument &doc, const QVariantMap &palette, qreal 
     doc.setTextWidth(width);
 }
 void layoutSlideText(QTextDocument &doc, const QString &markdown, const QVariantMap &palette,
-                     qreal fontSize, qreal width, bool centered, bool code) {
+                     qreal fontSize, qreal width, Qt::Alignment alignment, bool code) {
     doc.setUndoRedoEnabled(false);
     doc.setMarkdown(preserveLineBreaks(markdown), QTextDocument::MarkdownDialectGitHub);
-    sizeSlideText(doc, palette, fontSize, width, centered, code);
+    sizeSlideText(doc, palette, fontSize, width, alignment, code);
 }
 static QMutex fitMutex;
 static QCache<QString, qreal> fittedSizes(4096);
@@ -621,6 +624,7 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
     QString text = media.text.trimmed();
     auto problems = slideProblems(source, base);
     QRectF area(130, 90, 1660, 900);
+    bool band = false; // A headline above a video or diagram keeps its band at the top.
     if (!media.file.isEmpty()) {
         QString path =
             media.video ? (media.poster.isEmpty() ? ensurePoster(media.path, base) : media.poster)
@@ -705,14 +709,18 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
                 p->fillRect(QRectF(0, 0, 1920, 1080), QColor(0, 0, 0, qRound(media.overlay * 255)));
             if (fg.isEmpty() && !text.isEmpty())
                 palette["foreground"] = "#ffffff";
-        } else if (!text.isEmpty())
+        } else if (!text.isEmpty()) {
             area = QRectF(130, 40, 1660, 205);
+            band = true;
+        }
     }
     if (!media.diagram.isEmpty() && media.file.isEmpty()) {
         // Like a video, a diagram under a headline leaves the headline a band at the top.
         const QRectF rect = text.isEmpty() ? QRectF(70, 50, 1780, 980) : QRectF(100, 280, 1720, 730);
-        if (!text.isEmpty())
+        if (!text.isEmpty()) {
             area = QRectF(130, 40, 1660, 205);
+            band = true;
+        }
         if (!overlayOnly && !backgroundOnly) {
             const qreal size = paintMermaid(p, rect, media.diagram, palette);
             if (size > 0 && size < 18 && warning)
@@ -730,12 +738,19 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
         bool list = text.contains(
             QRegularExpression("^\\s*(?:[-*+] |[0-9]+[.)] )", QRegularExpression::MultilineOption));
         bool table = text.contains(QRegularExpression("\\|[ :|-]+\\|"));
-        bool centered = !(code || quote || list || table);
-        const QString alignment = slideProperty(source, "alignment");
-        if (alignment == "left")
-            centered = false;
-        if (alignment == "center")
-            centered = true;
+        // The slide's own setting wins over the deck's; "auto" leaves text centered and
+        // lists, quotes, code and tables on the left.
+        QString horizontal = slideSetting(source, "alignment");
+        if (horizontal.isEmpty())
+            horizontal = palette.value("alignment").toString();
+        const Qt::Alignment alignment = horizontal == "left"     ? Qt::AlignLeft
+                                        : horizontal == "center" ? Qt::AlignHCenter
+                                        : horizontal == "right"  ? Qt::AlignRight
+                                        : code || quote || list || table ? Qt::AlignLeft
+                                                                         : Qt::AlignHCenter;
+        QString vertical = slideSetting(source, "vertical_alignment");
+        if (vertical.isEmpty())
+            vertical = palette.value("vertical_alignment").toString();
         bool stack = (text.contains('\n') || text.contains('\r')) && !text.startsWith('#') &&
                      !quote && !list && !code;
         qreal low = 8, high = code ? 56 : quote ? 64 : list ? 72 : table ? 60 : stack ? 128 : 76;
@@ -745,33 +760,37 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
         // Layout happens in 1080p slide units, so every render size, the PDF and
         // a theme change all reuse one search. Colors never affect the fit.
         const QString fit = QString("%1 %2 %3 %4 %5 ").arg(high).arg(area.width()).arg(area.height())
-                                .arg(centered).arg(code) + palette.value("font").toString() + '\n' +
+                                .arg(int(alignment)).arg(code) + palette.value("font").toString() + '\n' +
                                 palette.value("bold_font").toString() + '\n' + text;
         if (const qreal fitted = fittedSize(fit); fitted > 0) {
             low = fitted;
-            layoutSlideText(doc, text, palette, low, area.width(), centered, code);
+            layoutSlideText(doc, text, palette, low, area.width(), alignment, code);
         } else {
-            layoutSlideText(doc, text, palette, high, area.width(), centered, code);
+            layoutSlideText(doc, text, palette, high, area.width(), alignment, code);
             const bool fits = doc.size().height() <= area.height() && doc.idealWidth() <= area.width() + 1;
             if (fits)
                 low = high;
             for (int iteration = 0; !fits && iteration < 9; ++iteration) {
                 qreal size = (low + high) / 2;
-                sizeSlideText(doc, palette, size, area.width(), centered, code);
+                sizeSlideText(doc, palette, size, area.width(), alignment, code);
                 if (doc.size().height() <= area.height() && doc.idealWidth() <= area.width() + 1)
                     low = size;
                 else
                     high = size;
             }
             if (!fits)
-                sizeSlideText(doc, palette, low, area.width(), centered, code);
+                sizeSlideText(doc, palette, low, area.width(), alignment, code);
             rememberFit(fit, low);
         }
         highlightCode(doc, palette);
         if (low < 24 && warning)
             *warning = "Text fits below 24px on a 1080p slide";
         p->save();
-        p->translate(area.x(), area.y() + qMax(0.0, (area.height() - doc.size().height()) / 2));
+        const qreal room = qMax(0.0, area.height() - doc.size().height());
+        p->translate(area.x(), area.y() + (band                 ? room / 2
+                                           : vertical == "top"    ? 0
+                                           : vertical == "bottom" ? room
+                                                                  : room / 2));
         QAbstractTextDocumentLayout::PaintContext context;
         context.palette.setColor(QPalette::Text, QColor(palette["foreground"].toString()));
         doc.documentLayout()->draw(p, context);

@@ -83,6 +83,17 @@ QList<Problem> findProblems(const Deck &deck) {
     if (!boldColor.isEmpty() && !QColor(boldColor).isValid())
         problems << Problem{0, headerLine("bold_color"), false,
                             "Unreadable bold_color " + boldColor + "; write it as #d0021b"};
+    static const QStringList horizontal{"auto", "left", "center", "right"},
+        vertical{"auto", "top", "center", "bottom"};
+    auto unreadable = [](const QString &key, const QString &value, const QStringList &values) {
+        return "Unreadable " + key + " " + value + "; write it as " +
+               values.mid(0, values.size() - 1).join(", ") + " or " + values.last();
+    };
+    for (const auto &[key, values] : {std::pair{"alignment", horizontal}, {"vertical_alignment", vertical}}) {
+        const QString value = scalar(parsed.header, key);
+        if (!value.isEmpty() && !values.contains(value))
+            problems << Problem{0, headerLine(key), false, unreadable(key, value, values)};
+    }
 #ifdef Q_OS_MACOS
     if (!isOmarchyFont(deck.fontName()))
         problems << Problem{0, headerLine("font"), false,
@@ -101,6 +112,19 @@ QList<Problem> findProblems(const Deck &deck) {
         else if (duration > 0 && i > 0)
             problems << Problem{i + 1, line, false,
                                 "The talk's duration only counts on the first slide"};
+        for (const auto &[key, values] : {std::pair{"alignment", horizontal}, {"vertical_alignment", vertical}}) {
+            const QString value = slideSetting(deck.slide(i), key);
+            if (!value.isEmpty() && !values.contains(value))
+                problems << Problem{i + 1, line, false, unreadable(key, value, values)};
+        }
+        // Only the slide's own setting: a deck-wide default was never meant for these slides.
+        const QString vertical = slideSetting(deck.slide(i), "vertical_alignment");
+        const Media media = parseMedia(deck.slide(i), deck.baseDir());
+        if ((vertical == "top" || vertical == "bottom") &&
+            ((media.video && !media.span) || (!media.diagram.isEmpty() && media.file.isEmpty())))
+            problems << Problem{i + 1, line, false,
+                                "A video or diagram keeps its headline at the top; vertical_alignment "
+                                "has no effect here"};
     }
     QList<int> indices;
     for (int i = 0; i < deck.count(); ++i)
