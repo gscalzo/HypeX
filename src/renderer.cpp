@@ -13,6 +13,7 @@
 #include <QImageReader>
 #include <QMutex>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QProcess>
 #include <QRegularExpression>
@@ -200,8 +201,51 @@ QString withMediaDirectives(const QString &source, const QStringList &remove,
 }
 static Media readMedia(const QString &source, const QString &base) {
     Media result;
+    // The first problem is the one worth reporting; later ones often follow from it.
+    auto fail = [&](const QString &message) {
+        if (result.error.isEmpty())
+            result.error = message;
+    };
+    result.layout = slideSetting(source, "layout");
+    if (!QStringList{"", "overlay", "image-full", "image-left", "image-right", "image-bottom"}.contains(result.layout))
+        fail("Unknown layout: " + result.layout);
+    // An unknown layout falls back to the ordinary overlay, like "overlay" itself.
+    if (!QStringList{"image-full", "image-left", "image-right", "image-bottom"}.contains(result.layout))
+        result.layout.clear();
+    const QString blur = slideSetting(source, "image_blur");
+    if (!QStringList{"", "true", "false", "text"}.contains(blur))
+        fail("image_blur must be true, false or text");
+    result.frosted = blur == "text";
+    result.blur = blur.isEmpty() ? result.layout.isEmpty() : blur == "true";
+    if (result.frosted && !result.layout.isEmpty() && result.layout != "image-full")
+        fail("image_blur=\"text\" needs text over the image, not a separate layout");
+    auto number = [&](const QString &key, double low, double high, auto *out) {
+        const QString value = slideSetting(source, key);
+        if (value.isEmpty())
+            return;
+        if (!result.frosted)
+            return fail(key + " needs image_blur=\"text\"");
+        bool ok;
+        const double parsed = value.toDouble(&ok);
+        if (!ok || parsed < low || parsed > high)
+            return fail(key + QString(" must be between %1 and %2").arg(low).arg(high));
+        *out = parsed;
+    };
+    number("panel_blur", 0, 200, &result.panelBlur);
+    number("panel_radius", 0, 200, &result.panelRadius);
+    number("panel_opacity", 0, 1, &result.panelOpacity);
+    if (const QString color = slideSetting(source, "panel_color"); !color.isEmpty()) {
+        if (!result.frosted)
+            fail("panel_color needs image_blur=\"text\"");
+        else if (!QColor(color).isValid())
+            fail("Invalid panel_color");
+        else
+            result.panelColor = color;
+    }
     result.text = withoutComments(source);
     takeDiagram(result.text, &result.diagram);
+    if (!result.diagram.isEmpty() && !result.layout.isEmpty())
+        fail("Separate image layouts require an image, not a diagram");
     auto m = mediaRe.match(outsideCode(result.text));
     if (!m.hasMatch())
         return result;
@@ -209,6 +253,10 @@ static Media readMedia(const QString &source, const QString &base) {
     result.video = QStringList{"mp4", "m4v", "mov", "webm", "mkv"}.contains(
         QFileInfo(result.file).suffix().toLower());
     result.path = assetPath(base, result.file, result.video);
+    if (result.video && !result.layout.isEmpty())
+        fail("Separate image layouts require an image, not a video");
+    if (result.video && result.frosted)
+        fail("image_blur=\"text\" needs an image, not a video");
     result.text.remove(m.capturedStart(), m.capturedLength());
     result.span = !result.video &&
                   outsideCode(result.text)
@@ -228,7 +276,7 @@ static Media readMedia(const QString &source, const QString &base) {
         while (it.hasNext()) {
             auto token = it.next();
             if (!flags.mid(consumed, token.capturedStart() - consumed).trimmed().isEmpty())
-                result.error = "Invalid media directive";
+                fail("Invalid media directive");
             consumed = token.capturedEnd();
             QString key = token.captured(1), value = token.captured(2);
             if (value.startsWith('"'))
@@ -250,26 +298,28 @@ static Media readMedia(const QString &source, const QString &base) {
             else if (key == "background") {
                 result.background = value;
                 if (value != "auto" && value != "theme" && value != "blur" && !QColor(value).isValid())
-                    result.error = "Invalid background color";
+                    fail("Invalid background color");
             } else if (key == "poster")
                 result.poster = assetPath(base, value, false);
             else if (key != "alt")
-                result.error = "Unknown media directive: " + key;
+                fail("Unknown media directive: " + key);
         }
         if (!flags.mid(consumed).trimmed().isEmpty())
-            result.error = "Invalid media directive";
+            fail("Invalid media directive");
     }
     if (fit && span)
-        result.error = "Choose either span or fit";
+        fail("Choose either span or fit");
     // A background choice implies fitting unless span was explicitly requested.
     if (!span && (result.background == "blur" || result.background == "auto"))
         result.span = false;
-    result.overlay = (!result.video || result.span) && !result.text.trimmed().isEmpty() ? 0.25 : 0;
+    // Behind-text blur tints only its panel, so the rest of the picture stays undarkened.
+    result.overlay = result.frosted ? 0
+                   : (result.layout.isEmpty() || result.layout == "image-full") && (!result.video || result.span) && !result.text.trimmed().isEmpty() ? 0.25 : 0;
     if (!explicitOverlay.isEmpty()) {
         bool ok;
         double opacity = explicitOverlay.toDouble(&ok);
         if (!ok || opacity < 0 || opacity > 1)
-            result.error = "Overlay must be between 0 and 1";
+            fail("Overlay must be between 0 and 1");
         else
             result.overlay = opacity;
     }
@@ -451,6 +501,22 @@ static QImage blurredBackground(const QImage &image) {
     }
     return blurred;
 }
+static QImage frostedImage(const QImage &image, int radius, qreal drawnWidth) {
+    // Blur a small copy, then draw it back at full size: cheap for any radius,
+    // and smooth. The radius is in 1080p slide pixels, so it scales down with it.
+    if (radius <= 0 || image.isNull())
+        return image;
+    const int width = qMin(480, image.width());
+    const int small = qMax(1, qRound(radius * width / drawnWidth));
+    static ImageCache cache(16 * 1024);
+    const QString key = QString::number(image.cacheKey()) + "/frosted/" + QString::number(small);
+    QImage frosted = cache.get(key);
+    if (frosted.isNull()) {
+        frosted = boxBlur(image.scaledToWidth(width, Qt::SmoothTransformation), small);
+        cache.put(key, frosted);
+    }
+    return frosted;
+}
 QImage softenedImage(const QImage &image, const QSizeF &slideSize) {
     // A roughly two-pixel softness at 1080p, scaled with the picture at 4K.
     // Text is painted afterwards and stays sharp. Share the cache across preview
@@ -600,6 +666,14 @@ static void rememberFit(const QString &key, qreal size) {
     fittedSizes.insert(key, new qreal(size));
 }
 QRectF mediaRect(const Media &media) {
+    if (media.layout == "image-full")
+        return QRectF(0, 0, 1920, 1080);
+    if (media.layout == "image-right")
+        return QRectF(864, 0, 1056, 1080);
+    if (media.layout == "image-left")
+        return QRectF(0, 0, 1056, 1080);
+    if (media.layout == "image-bottom")
+        return QRectF(0, 280, 1920, 800);
     return media.span ? QRectF(0, 0, 1920, 1080)
                       : (!media.video || media.text.trimmed().isEmpty() ? QRectF(70, 50, 1780, 980)
                                                         : QRectF(100, 280, 1720, 730));
@@ -624,7 +698,19 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
     QString text = media.text.trimmed();
     auto problems = slideProblems(source, base);
     QRectF area(130, 90, 1660, 900);
+    const bool separate = QStringList{"image-left", "image-right", "image-bottom"}.contains(media.layout) &&
+                          !media.file.isEmpty() && !media.video;
+    if (separate) {
+        if (media.layout == "image-right")
+            area = QRectF(96, 96, 672, 888);
+        else if (media.layout == "image-left")
+            area = QRectF(1152, 96, 672, 888);
+        else if (media.layout == "image-bottom")
+            area = QRectF(96, 40, 1728, 200);
+    }
     bool band = false; // A headline above a video or diagram keeps its band at the top.
+    QImage frost; // With image_blur="text", the picture to blur under the text.
+    QRectF frostDest, frostClip;
     if (!media.file.isEmpty()) {
         QString path =
             media.video ? (media.poster.isEmpty() ? ensurePoster(media.path, base) : media.poster)
@@ -637,8 +723,17 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
             (media.background == "blur" || media.background == "auto")
             ? loadedImage(ensurePoster(media.path, base), QSize(320, 180), false) : image;
         if (!overlayOnly && !media.span && media.background == "blur") {
-            if (!backdrop.isNull())
-                p->drawImage(QRectF(0, 0, 1920, 1080), blurredBackground(backdrop));
+            if (!backdrop.isNull()) {
+                // Crop the 16:9 blur to the region's shape instead of squashing it.
+                const QRectF target = separate ? rect : QRectF(0, 0, 1920, 1080);
+                const QImage blurred = blurredBackground(backdrop);
+                QSizeF crop = target.size();
+                crop.scale(blurred.size(), Qt::KeepAspectRatio);
+                p->drawImage(target, blurred,
+                             QRectF(QPointF((blurred.width() - crop.width()) / 2,
+                                            (blurred.height() - crop.height()) / 2),
+                                    crop));
+            }
         }
         if ((!media.video || !media.background.isEmpty()) && !media.span && media.background != "theme" &&
             (bg.isEmpty() || !media.background.isEmpty())) {
@@ -673,8 +768,8 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
             }
             if (color.isValid()) {
                 if (!overlayOnly)
-                    p->fillRect(QRectF(0, 0, 1920, 1080), color);
-                if (fg.isEmpty()) {
+                    p->fillRect(separate ? rect : QRectF(0, 0, 1920, 1080), color);
+                if (fg.isEmpty() && !separate) {
                     QString ink = (color.redF() * 0.2126 + color.greenF() * 0.7152 +
                                    color.blueF() * 0.0722) > .55
                                       ? "#161616"
@@ -695,8 +790,13 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
                         scaled);
             p->save();
             p->setClipRect(rect);
-            p->drawImage(dest, !media.video && !text.isEmpty() ? softenedImage(image, dest.size()) : image);
+            p->drawImage(dest, !media.video && media.blur && !text.isEmpty() ? softenedImage(image, dest.size()) : image);
             p->restore();
+            if (media.frosted && !media.video && !separate) {
+                frost = image;
+                frostDest = dest;
+                frostClip = rect;
+            }
         } else if (!overlayOnly && !backgroundOnly) {
             p->setPen(QColor(palette["accent"].toString()));
             QFont diagnostic("sans");
@@ -706,9 +806,14 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
         }
         if (!media.video || media.span) {
             if (!backgroundOnly)
-                p->fillRect(QRectF(0, 0, 1920, 1080), QColor(0, 0, 0, qRound(media.overlay * 255)));
-            if (fg.isEmpty() && !text.isEmpty())
-                palette["foreground"] = "#ffffff";
+                p->fillRect(separate ? rect : QRectF(0, 0, 1920, 1080), QColor(0, 0, 0, qRound(media.overlay * 255)));
+            if (fg.isEmpty() && !text.isEmpty() && !separate) {
+                // White reads on a dark panel; a mostly opaque light panel takes dark text.
+                const QColor tint(media.panelColor);
+                const bool light = media.frosted && media.panelOpacity >= 0.5 &&
+                                   tint.redF() * 0.2126 + tint.greenF() * 0.7152 + tint.blueF() * 0.0722 > .55;
+                palette["foreground"] = light ? "#161616" : "#ffffff";
+            }
         } else if (!text.isEmpty()) {
             area = QRectF(130, 40, 1660, 205);
             band = true;
@@ -785,12 +890,33 @@ void paintSlide(QPainter *p, const QRectF &target, const QString &source, const 
         highlightCode(doc, palette);
         if (low < 24 && warning)
             *warning = "Text fits below 24px on a 1080p slide";
-        p->save();
         const qreal room = qMax(0.0, area.height() - doc.size().height());
-        p->translate(area.x(), area.y() + (band                 ? room / 2
-                                           : vertical == "top"    ? 0
-                                           : vertical == "bottom" ? room
-                                                                  : room / 2));
+        const QPointF origin(area.x(), area.y() + (band                 ? room / 2
+                                                   : vertical == "top"    ? 0
+                                                   : vertical == "bottom" ? room
+                                                                          : room / 2));
+        if (!frost.isNull()) {
+            // A rounded panel of heavily blurred picture, just larger than the text.
+            const qreal width = qMin(doc.idealWidth(), area.width());
+            const qreal x = alignment == Qt::AlignLeft    ? origin.x()
+                            : alignment == Qt::AlignRight ? origin.x() + area.width() - width
+                                                          : origin.x() + (area.width() - width) / 2;
+            const QRectF panel = QRectF(x, origin.y(), width, doc.size().height())
+                                     .adjusted(-48, -32, 48, 32)
+                                     .intersected(frostClip);
+            QPainterPath shape;
+            shape.addRoundedRect(panel, media.panelRadius, media.panelRadius);
+            p->save();
+            p->setRenderHint(QPainter::SmoothPixmapTransform);
+            p->setClipPath(shape);
+            p->drawImage(frostDest, frostedImage(frost, media.panelBlur, frostDest.width()));
+            QColor tint(media.panelColor);
+            tint.setAlphaF(tint.alphaF() * media.panelOpacity);
+            p->fillPath(shape, tint);
+            p->restore();
+        }
+        p->save();
+        p->translate(origin);
         QAbstractTextDocumentLayout::PaintContext context;
         context.palette.setColor(QPalette::Text, QColor(palette["foreground"].toString()));
         doc.documentLayout()->draw(p, context);

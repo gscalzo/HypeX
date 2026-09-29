@@ -94,6 +94,10 @@ a note. Put several in one comment: `<!-- hype: background="#000000" foreground=
 | `foreground="#rrggbb"` | This slide's text color |
 | `alignment="left"` | Align the text to the left; also `"center"`, `"right"`, or `"auto"` for the usual rule |
 | `vertical_alignment="top"` | Move the text to the top; also `"center"`, `"bottom"`, or `"auto"` (centered) |
+| `layout="image-right"` | Separate text and image; also `"image-left"`, `"image-bottom"`, or `"overlay"` (the default) |
+| `layout="image-full"` | Use the whole canvas for an image, including `fit` with no inset margins; any text is overlaid |
+| `image_blur="false"` | Keep the image sharp behind text; `"true"` softens it; `"text"` keeps it sharp and blurs only a panel under the text. Defaults to true for the ordinary overlay layout, false for explicit image layouts |
+| `panel_blur="40"` | With `image_blur="text"`: the panel's blur radius; also `panel_color`, `panel_opacity`, `panel_radius` (below) |
 | `duration="20m"` | On the first slide only: the talk's length, counted down in Presenter View from the second slide. Also `45 min`, `1h 30m`, `90s`, `25:00` |
 
 `alignment` and `vertical_alignment` override the front matter for their slide.
@@ -105,6 +109,55 @@ and ignores the other values and `vertical_alignment`.
 `hype check` warns about a length it can't read, or one on a later slide; about
 an alignment it can't read; and about a video or diagram slide that sets its own
 `vertical_alignment` to `top` or `bottom`.
+
+`layout="image-full"` with `![fit](picture.png)` shows the whole image as large
+as the canvas allows, without the normal inset margins. It keeps the image sharp;
+text, if any, is overlaid with the usual default darkening. Use `span` for a crop.
+
+Separate image layouts reserve 45% of the slide for text and 55% for the image
+on the named side. `image-bottom` reserves a 280px headline band above the image
+on a 1920×1080 slide. Text alignment applies within its reserved space; images
+use `fit` (whole picture) or `span` (fill their region, cropping as needed).
+Separate layouts keep the theme's text color, with no default darkening or blur.
+An explicit `overlay` or media `background` affects only the image region.
+They require an image, not a video or Mermaid diagram. Without an image the
+text uses the ordinary full-slide layout. `image_blur` controls the image itself,
+not a `background=blur` backdrop. Hype on Omarchy ignores these comments and
+uses its ordinary overlaid image layout; the Markdown remains readable.
+
+```markdown
+<!-- hype: layout="image-right" alignment="left" -->
+# Just one more prompt
+
+![fit background=#ffffff](machine.jpg)
+```
+
+`image_blur="text"` puts the text on a rounded panel, 48px wider and 32px
+taller than the text on each side, filled with a heavily blurred copy of the
+picture and a tint. The rest of the picture stays sharp and undarkened (the
+media `overlay` option still darkens all of it), and the panel follows
+`alignment` and `vertical_alignment`. Tune the panel with slide settings in the
+same comment, all in 1080p slide pixels:
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `panel_blur="40"` | `40` | Blur radius, 0 to 200; `0` tints without blurring |
+| `panel_color="#000000"` | `#000000` | Tint color |
+| `panel_opacity="0.35"` | `0.35` | Tint strength, 0 to 1 |
+| `panel_radius="28"` | `28` | Corner radius, 0 to 200 |
+
+Text is white, or dark on a light `panel_color` at `panel_opacity` 0.5 or more;
+`foreground` overrides it. `panel_*` settings without `image_blur="text"`, or
+out of range, are `hype check` errors. It works with the ordinary overlay and
+`image-full`; with a video or a separate layout `hype check` reports an error. Hype on Omarchy ignores it and shows its usual
+overlaid image.
+
+```markdown
+<!-- hype: image_blur="text" panel_blur="60" panel_color="#1a1b26" panel_opacity="0.5" -->
+![span](city.jpg)
+
+# Night shift
+```
 
 ## Images and video
 

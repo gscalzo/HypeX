@@ -8,7 +8,12 @@
 #include <memory>
 class QTextDocument;
 struct Media {
-    QString file, path, poster, error, background;
+    QString file, path, poster, error, background, layout;
+    bool blur = true, frosted = false; // frosted: blur only the image under the text.
+    // The frosted panel, in 1080p slide pixels.
+    QString panelColor = "#000000";
+    double panelOpacity = 0.35;
+    int panelBlur = 40, panelRadius = 28;
     bool video = false, span = false, loop = false, muted = false, autoplay = true;
     double overlay = 0;
     QString text;

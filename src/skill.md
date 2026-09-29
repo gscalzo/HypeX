@@ -47,6 +47,12 @@ diagrams, for this version of Hype.
   styles for this.
 - Where text sits, such as top left: `alignment` and `vertical_alignment` in the
   front matter for the whole deck, or in one slide's `hype:` comment.
+- Readable text on or beside an image: the slide's `layout` setting reserves
+  separate regions; `image-full` gives a fitted image the whole canvas.
+  `image_blur` controls whether artwork stays sharp; `image_blur="text"` keeps
+  it sharp and blurs only a panel under the text, tuned with `panel_blur`,
+  `panel_color`, `panel_opacity` and `panel_radius`. Use `fit` to keep the
+  whole image or `span` to fill its region. See `hype help format`.
 - One slide's colors: `<!-- hype: background="#000000" -->`, `foreground`.
 - Prefer fonts Omarchy installs (JetBrains Mono, Noto, iA Writer); `hype check`
   warns about others, so mention it if the person asked for one.
