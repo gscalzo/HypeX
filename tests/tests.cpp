@@ -2923,6 +2923,133 @@ class HypeTests : public QObject {
         deck.editSlide("![fit overlay=0](portrait.png)\n\n# Headline");
         QCOMPARE(parseMedia(deck.slideSource(), deck.baseDir()).overlay, 0.0);
     }
+    void separateImageLayoutsKeepTextAndArtworkApart() {
+        QTemporaryDir tmp;
+        QVERIFY(QDir().mkpath(tmp.path() + "/images"));
+        QImage picture(1920, 1080, QImage::Format_RGB32);
+        picture.fill(Qt::blue);
+        QVERIFY(picture.save(tmp.path() + "/images/picture.png"));
+        Deck deck;
+        deck.editSource("---\ncolor_background: '#ffffff'\ncolor_foreground: '#000000'\n---\n# Test");
+        QVERIFY(deck.savePath(tmp.path() + "/talk.md"));
+        Thumbnails provider(&deck);
+        for (const QString &layout : {"image-left", "image-right", "image-bottom"}) {
+            const QString source = "<!-- hype: layout=\"" + layout + "\" -->\n"
+                                   "![span](picture.png)\n\n# Readable text";
+            deck.editSlide(source);
+            const Media media = parseMedia(source, tmp.path());
+            QVERIFY2(media.error.isEmpty(), qPrintable(media.error));
+            QVERIFY(!media.blur);
+            QCOMPARE(media.overlay, 0.0);
+            const QRect imageBox = mediaRect(media).toRect();
+            const auto rendered = provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080));
+            int dark = 0;
+            for (int y = 0; y < rendered.height(); ++y)
+                for (int x = 0; x < rendered.width(); ++x) {
+                    const QColor c = rendered.pixelColor(x, y);
+                    if (imageBox.contains(x, y)) {
+                        QCOMPARE(c, QColor(Qt::blue)); // No text or default darkening on the image.
+                    } else if (c.red() < 100 && c.green() < 100 && c.blue() < 100) {
+                        ++dark; // Theme-colored text remains outside the image.
+                    }
+                }
+            QVERIFY(dark > 1000);
+            QCOMPARE(deck.media().value("rect").toRectF(), mediaRect(media));
+        }
+        QVERIFY(deck.exportPdf(tmp.path() + "/talk.pdf"));
+        QPdfDocument pdf;
+        QCOMPARE(pdf.load(tmp.path() + "/talk.pdf"), QPdfDocument::Error::None);
+        const auto exported = pdf.render(0, QSize(1920, 1080));
+        QCOMPARE(exported.pixelColor(960, 600), QColor(Qt::blue));
+        const auto full = parseMedia("<!-- hype: layout=\"image-full\" -->\n![fit](picture.png)", tmp.path());
+        QVERIFY(full.error.isEmpty() && !full.span && !full.blur);
+        QCOMPARE(mediaRect(full), QRectF(0, 0, 1920, 1080));
+        const auto unknown = parseMedia("<!-- hype: layout=\"bad\" -->\n![](picture.png)\n\n# Text", tmp.path());
+        QCOMPARE(unknown.error, QString("Unknown layout: bad"));
+        QVERIFY(unknown.layout.isEmpty() && unknown.blur); // Falls back to the ordinary overlay.
+        QCOMPARE(unknown.overlay, 0.25);
+        QCOMPARE(parseMedia("<!-- hype: layout=\"bad\" -->\n![nonsense=1](picture.png)", tmp.path()).error,
+                 QString("Unknown layout: bad"));
+        QVERIFY(!parseMedia("<!-- hype: image_blur=\"maybe\" -->", tmp.path()).error.isEmpty());
+        // A blurred backdrop is cropped to the image region, not squashed into it:
+        // the red stripe at the far left of the picture stays out of view.
+        QImage wide(1920, 200, QImage::Format_RGB32);
+        wide.fill(Qt::blue);
+        QPainter(&wide).fillRect(0, 0, 360, 200, Qt::red);
+        QVERIFY(wide.save(tmp.path() + "/images/wide.png"));
+        deck.editSlide("<!-- hype: layout=\"image-right\" -->\n![fit background=blur](wide.png)\n\n# Text");
+        const QColor edge = provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080)).pixelColor(884, 100);
+        QVERIFY2(edge.blue() > edge.red(), qPrintable(edge.name()));
+    }
+    void imageBlursOnlyUnderText() {
+        QTemporaryDir tmp;
+        QVERIFY(QDir().mkpath(tmp.path() + "/images"));
+        // Two-pixel red and blue stripes: sharp pixels are pure, blurred ones mix.
+        QImage stripes(1920, 1080, QImage::Format_RGB32);
+        for (int x = 0; x < stripes.width(); ++x)
+            for (int y = 0; y < stripes.height(); ++y)
+                stripes.setPixelColor(x, y, (x / 2) % 2 ? Qt::blue : Qt::red);
+        QVERIFY(stripes.save(tmp.path() + "/images/stripes.png"));
+        Deck deck;
+        deck.editSource("---\ncolor_background: '#ffffff'\ncolor_foreground: '#000000'\n---\n# Test");
+        QVERIFY(deck.savePath(tmp.path() + "/talk.md"));
+        Thumbnails provider(&deck);
+        const QString source = "<!-- hype: image_blur=\"text\" -->\n![span](stripes.png)\n\n# Hi";
+        const Media media = parseMedia(source, tmp.path());
+        QVERIFY2(media.error.isEmpty(), qPrintable(media.error));
+        QVERIFY(media.frosted && !media.blur);
+        QCOMPARE(media.overlay, 0.0);
+        QCOMPARE(media.panelOpacity, 0.35);
+        auto mixed = [](const QImage &image, int y) {
+            int count = 0;
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                count += c.green() < 30 && c.red() > 30 && c.red() < 200 && c.blue() > 30 && c.blue() < 200;
+            }
+            return count;
+        };
+        deck.editSlide(source);
+        const auto rendered = provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080));
+        // Away from the text the picture is untouched: sharp and not darkened.
+        QCOMPARE(rendered.pixelColor(10, 100), stripes.pixelColor(10, 100));
+        QCOMPARE(rendered.pixelColor(1900, 1000), stripes.pixelColor(1900, 1000));
+        QCOMPARE(mixed(rendered, 100), 0);
+        // Behind the headline it is blurred and darkened.
+        QVERIFY(mixed(rendered, 540) > 100);
+        QVERIFY(deck.exportPdf(tmp.path() + "/talk.pdf"));
+        QPdfDocument pdf;
+        QCOMPARE(pdf.load(tmp.path() + "/talk.pdf"), QPdfDocument::Error::None);
+        const auto exported = pdf.render(0, QSize(1920, 1080));
+        QVERIFY(mixed(exported, 540) > 100);
+        // No blur keeps the stripes pure under the tint.
+        deck.editSlide("<!-- hype: image_blur=\"text\" panel_blur=\"0\" -->\n![span](stripes.png)\n\n# Hi");
+        QCOMPARE(mixed(provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080)), 540), 0);
+        // An opaque white panel hides the picture and takes dark text.
+        deck.editSlide("<!-- hype: image_blur=\"text\" panel_color=\"#ffffff\" panel_opacity=\"1\" "
+                       "panel_radius=\"0\" -->\n![span](stripes.png)\n\n# Hi");
+        const auto white = provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080));
+        int paper = 0, ink = 0;
+        for (int x = 0; x < white.width(); ++x) {
+            const QColor c = white.pixelColor(x, 540);
+            paper += c == QColor(Qt::white);
+            ink += c.red() < 60 && c.green() < 60 && c.blue() < 60;
+        }
+        QVERIFY(paper > 100 && ink > 20);
+        const auto custom = parseMedia("<!-- hype: image_blur=\"text\" panel_blur=\"80\" panel_radius=\"0\" "
+                                       "panel_opacity=\"0.6\" panel_color=\"#1a1b26\" -->", tmp.path());
+        QVERIFY2(custom.error.isEmpty(), qPrintable(custom.error));
+        QVERIFY(custom.panelBlur == 80 && custom.panelRadius == 0 && custom.panelOpacity == 0.6 &&
+                custom.panelColor == "#1a1b26");
+        QCOMPARE(parseMedia("<!-- hype: image_blur=\"text\" -->\n![overlay=0.6](stripes.png)\n\n# Hi", tmp.path()).overlay, 0.6);
+        QVERIFY(!parseMedia("<!-- hype: panel_blur=\"20\" -->", tmp.path()).error.isEmpty());
+        QVERIFY(!parseMedia("<!-- hype: image_blur=\"text\" panel_opacity=\"2\" -->", tmp.path()).error.isEmpty());
+        QVERIFY(!parseMedia("<!-- hype: image_blur=\"text\" panel_color=\"nope\" -->", tmp.path()).error.isEmpty());
+        QVERIFY(!parseMedia("<!-- hype: layout=\"image-right\" image_blur=\"text\" -->", tmp.path()).error.isEmpty());
+        QVERIFY(!parseMedia("<!-- hype: image_blur=\"text\" -->\n![](movie.mp4)", tmp.path()).error.isEmpty());
+        QVERIFY(parseMedia("<!-- hype: layout=\"image-full\" image_blur=\"text\" -->", tmp.path()).error.isEmpty());
+        QVERIFY(!parseMedia("<!-- hype: layout=\"image-right\" -->\n![](movie.mp4)", tmp.path()).error.isEmpty());
+        QVERIFY(parseMedia("```html\n<!-- hype: layout=\"bad\" -->\n```", tmp.path()).error.isEmpty());
+    }
     void picturesSoftenOnlyBehindText() {
         QTemporaryDir tmp;
         QVERIFY(QDir().mkpath(tmp.path() + "/images"));
@@ -2948,6 +3075,10 @@ class HypeTests : public QObject {
             QVERIFY(edge > 10 && edge < 240); // Only a narrow transition at the picture's edge.
             QCOMPARE(soft.pixelColor(940, 300), QColor(Qt::black));
             QCOMPARE(soft.pixelColor(980, 300), QColor(Qt::white));
+            deck.editSlide(source + "\n# A sharp headline\n<!-- hype: image_blur=\"false\" -->");
+            const auto explicitSharp = provider.requestImage(deck.renderId(0), nullptr, QSize(1920, 1080));
+            QCOMPARE(explicitSharp.pixelColor(958, 300), sharp.pixelColor(958, 300));
+            deck.editSlide(source + "\n# A sharp headline");
         }
         QVERIFY(deck.exportPdf(tmp.path() + "/talk.pdf"));
         QPdfDocument pdf;

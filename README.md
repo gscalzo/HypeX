@@ -92,6 +92,78 @@ Headlines are big, and text is sized to fit the slide, so say less per slide. Li
 
 `hype help format` prints the whole format, from front matter to media options; it is the same format as Hype's.
 
+## Text and images
+
+![Six ways to put a headline on a picture: the default overlay, a blurred panel
+under the text, a bottom-left caption, a blue tinted panel, a light square
+panel, and text beside the image](docs/screenshots/text-over-images.jpg)
+
+Put an image and a headline on the same slide and the text is drawn over the
+picture, which is softened and darkened a little (top left). A slide comment
+changes that; each tile above is one of these:
+
+| Tile | Slide comment |
+|------|---------------|
+| Default overlay | none |
+| `image_blur="text"` | `<!-- hype: image_blur="text" -->` |
+| Bottom-left caption | `<!-- hype: image_blur="text" alignment="left" vertical_alignment="bottom" -->` |
+| Blue tint, heavy blur | `<!-- hype: image_blur="text" panel_blur="100" panel_color="#7aa2f7" panel_opacity="0.45" panel_radius="60" -->` |
+| Light square panel | `<!-- hype: image_blur="text" panel_color="#ffffff" panel_opacity="0.8" panel_radius="0" -->` |
+| `layout="image-right"` | `<!-- hype: layout="image-right" alignment="left" -->` |
+
+### A blurred panel under the text
+
+`image_blur="text"` keeps the picture sharp and blurs only the part under the
+text:
+
+```markdown
+<!-- hype: image_blur="text" alignment="left" vertical_alignment="bottom" -->
+![span](city.jpg)
+
+# Night shift
+```
+
+The text sits on a rounded panel of blurred, tinted picture that follows its
+alignment and size; the rest of the image is untouched. Tune the panel in the
+same comment:
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| `panel_blur` | `40` | Blur radius in pixels on a 1080p slide, 0 to 200; `0` tints without blurring |
+| `panel_color` | `#000000` | Color of the tint |
+| `panel_opacity` | `0.35` | How strongly the tint covers the blur, 0 to 1 |
+| `panel_radius` | `28` | Corner radius in pixels, 0 to 200; `0` for square corners |
+
+Text is white unless the panel is a light color at 0.5 opacity or more, when it
+turns dark; `foreground` overrides both. The media `overlay` option still
+darkens the whole picture. It works with the ordinary overlay and
+`image-full`, not with video or the separate layouts.
+
+### Text beside an image
+
+Keep a headline and artwork in separate regions:
+
+```markdown
+<!-- hype: layout="image-right" alignment="left" -->
+# Just one more prompt
+
+![fit background=#ffffff](machine.jpg)
+```
+
+`image-right` and `image-left` give the image 55% of the slide; `image-bottom`
+puts it below a 280px headline band. `fit` keeps the whole picture; `span`
+fills its region. These layouts keep the theme's text color and the artwork
+sharp, and explicit overlays and backgrounds stay inside the image region.
+`layout="image-full"` with `![fit](picture.png)` shows a whole image as large as
+the slide allows, without inset margins; with `span` it fills by cropping.
+
+On an ordinary overlaid image, `<!-- hype: image_blur="false" -->` turns off the
+automatic softening.
+
+All of these work in previews, renders and exports. They are Markdown settings,
+with no keyboard shortcut. Stock Hype on Omarchy ignores these comments and
+shows its normal overlaid image.
+
 ## Add presenter notes
 
 Write notes for a slide in an HTML comment anywhere on that slide. The audience never sees them; Presenter View shows them to you while you present:
