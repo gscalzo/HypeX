@@ -22,6 +22,7 @@
 #include <QQuickWindow>
 #include <QScopeGuard>
 #include <QTimer>
+#include <algorithm>
 #include <cstdio>
 // The desktop's interface font, e.g. "Adwaita Sans 11", which the gtk3 platform
 // theme used to supply. Without a settings portal Qt's default font stays.
@@ -58,7 +59,7 @@ int main(int argc, char **argv) {
     bool windowless = command;
     for (int i = 1; i < argc; ++i) {
         const QByteArray argument(argv[i]);
-        for (const char *option : {"--pdf", "--pptx", "--render", "--help", "--version"})
+        for (const char *option : {"--pdf", "--pptx", "--key", "--render", "--help", "--version"})
             windowless = windowless || argument.startsWith(option);
         windowless = windowless || argument == "-h" || argument == "-v";
     }
@@ -82,6 +83,12 @@ int main(int argc, char **argv) {
     args.addPositionalArgument("presentation", "Markdown presentation");
     args.addOption({"pdf", "Export PDF and exit", "file"});
     args.addOption({"pptx", "Export rendered PowerPoint and exit", "file"});
+#ifdef Q_OS_MACOS
+    args.addOption({"key", "Export Keynote (needs Keynote) and exit", "file"});
+    const QStringList exports{"pdf", "pptx", "key"};
+#else
+    const QStringList exports{"pdf", "pptx"};
+#endif
     args.addOption({"render", "Render slide PNGs and manifest and exit", "directory"});
     args.addOption({"theme", "Apply installed theme", "name"});
     args.addOption({"save", "Save changes (for theme snapshots)"});
@@ -104,7 +111,8 @@ int main(int argc, char **argv) {
         fflush(stdout);
     };
     if (exportWorker) {
-        if (!args.isSet("pdf") && !args.isSet("pptx")) return 1;
+        if (std::none_of(exports.begin(), exports.end(), [&](const QString &format) { return args.isSet(format); }))
+            return 1;
         if (!deck.loadExportSnapshot(args.value(snapshotOption))) {
             report({{"error", deck.status()}});
             return 1;
@@ -114,7 +122,8 @@ int main(int argc, char **argv) {
         });
     }
     auto positional = args.positionalArguments();
-    const bool exporting = args.isSet("pdf") || args.isSet("pptx") || args.isSet("render");
+    const bool exporting = args.isSet("render") ||
+        std::any_of(exports.begin(), exports.end(), [&](const QString &format) { return args.isSet(format); });
     if (exporting && positional.isEmpty() && !exportWorker) {
         fprintf(stderr, "Name a Markdown presentation to export.\n");
         return 1;
@@ -132,12 +141,16 @@ int main(int argc, char **argv) {
     if (args.isSet("slide"))
         deck.select(args.value("slide").toInt() - 1);
     bool success = true, headless = false;
-    for (const QString &option : {QString("pdf"), QString("pptx"), QString("render")})
+    for (const QString &option : exports + QStringList{"render"})
         if (args.isSet(option)) {
             headless = true;
-            success = success && (option == "pdf"    ? deck.exportPdf(args.value(option))
-                                  : option == "pptx" ? deck.exportPptx(args.value(option))
-                                                     : deck.renderImages(args.value(option)));
+            const QString path = args.value(option);
+            success = success && (option == "pdf"    ? deck.exportPdf(path)
+                                  : option == "pptx" ? deck.exportPptx(path)
+#ifdef Q_OS_MACOS
+                                  : option == "key"  ? deck.exportKeynote(path)
+#endif
+                                                     : deck.renderImages(path));
         }
     if (headless) {
         if (exportWorker) {

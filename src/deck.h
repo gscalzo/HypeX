@@ -115,7 +115,10 @@ class Deck : public QAbstractListModel {
     Q_INVOKABLE QVariantList recoveryVersions() const;
     Q_INVOKABLE bool restoreVersion(const QString &name);
     bool exportPdf(const QString &path);
-    bool exportPptx(const QString &path);
+    bool exportPptx(const QString &path, double packaged = 1);
+#ifdef Q_OS_MACOS
+    bool exportKeynote(const QString &path);
+#endif
     bool renderImages(const QString &directory, int width = 1920, bool convertAnimations = false);
     Q_INVOKABLE void select(int index);
     Q_INVOKABLE void extendSelection(int index);

@@ -3,6 +3,9 @@
 #include "filedialog.h"
 #include "images.h"
 #include "pptx.h"
+#ifdef Q_OS_MACOS
+#include "keynote.h"
+#endif
 #include "renderer.h"
 #include <QGuiApplication>
 #include <QCache>
@@ -1200,6 +1203,15 @@ void Deck::setMediaMode(const QString &mode) {
         return;
     editSlide(withMediaDirectives(slideSource(), {"fit", "span"}, {mode}));
 }
+// Keynote export has Keynote convert the PowerPoint file, so it exists only on macOS.
+static QStringList exportFormats() {
+#ifdef Q_OS_MACOS
+    return {"pdf", "pptx", "key"};
+#else
+    return {"pdf", "pptx"};
+#endif
+}
+static QString exportLabel(const QString &format) { return format == "key" ? "Keynote" : format.toUpper(); }
 void Deck::exportDialog(const QString &format) {
     if (m_exporting)
         return;
@@ -1208,7 +1220,7 @@ void Deck::exportDialog(const QString &format) {
         true,
         baseDir() + "/" + QString(title()).replace(QRegularExpression(R"([/\\\x00-\x1f])"), "-") +
             "." + format,
-        format.toUpper(), {"*." + format}, &error);
+        exportLabel(format), {"*." + format}, &error);
     if (!error.isEmpty()) setStatus(error);
     if (p.isEmpty())
         return;
@@ -1254,7 +1266,7 @@ bool Deck::loadExportSnapshot(const QString &path) {
     return validateStructure("export");
 }
 void Deck::startExport(const QString &format, const QString &path) {
-    if (m_exporting || path.isEmpty() || !QStringList{"pdf", "pptx"}.contains(format))
+    if (m_exporting || path.isEmpty() || !exportFormats().contains(format))
         return;
     if (!validateStructure("export")) {
         m_exportFailed = true;
@@ -1283,7 +1295,7 @@ void Deck::startExport(const QString &format, const QString &path) {
     m_exportCancelled = false;
     m_exportFailed = false;
     m_exportProgress = 0;
-    m_exportStatus = "Preparing " + format.toUpper() + " export…";
+    m_exportStatus = "Preparing " + exportLabel(format) + " export…";
     emit exportChanged();
     auto *process = new QProcess(this);
     m_exportProcess = process;
@@ -1531,17 +1543,43 @@ bool Deck::renderImages(const QString &directory, int width, bool convertAnimati
     manifest.write(QJsonDocument(QJsonObject{{"title", title()}, {"slides", slides}}).toJson());
     return true;
 }
-bool Deck::exportPptx(const QString &path) {
+// Rendering takes progress to 0.8 and packaging to `packaged`, leaving the rest
+// for a Keynote conversion.
+bool Deck::exportPptx(const QString &path, double packaged) {
     QTemporaryDir temp;
     if (!renderImages(temp.path(), 3840, true))
         return false;
     QString error;
     emit exportAdvanced(0.8, "Packaging PowerPoint…");
-    if (!writePptx(temp.path() + "/slides.json", path, &error,
-        [this](double fraction) { emit exportAdvanced(0.8 + 0.2 * fraction, "Packaging PowerPoint…"); })) {
+    if (!writePptx(temp.path() + "/slides.json", path, &error, [this, packaged](double fraction) {
+            emit exportAdvanced(0.8 + (packaged - 0.8) * fraction, "Packaging PowerPoint…");
+        })) {
         setStatus("PowerPoint export failed: " + error);
         return false;
     }
     setStatus("Exported " + path);
     return true;
 }
+#ifdef Q_OS_MACOS
+// Keynote imports the PowerPoint export losslessly: the same 4K pictures and videos,
+// byte for byte, with the notes and each video's loop and mute settings.
+bool Deck::exportKeynote(const QString &path) {
+    QTemporaryDir temp;
+    const QString pptx = temp.filePath("slides.pptx"), key = temp.filePath("slides.key");
+    if (!temp.isValid() || !exportPptx(pptx, 0.85))
+        return false;
+    emit exportAdvanced(0.85, "Converting in Keynote…");
+    QString error;
+    if (!convertToKeynote(pptx, key, &error)) {
+        setStatus("Keynote export failed: " + error);
+        return false;
+    }
+    QFile::remove(path);
+    if (!QFile::rename(key, path)) {
+        setStatus("Could not save " + path);
+        return false;
+    }
+    setStatus("Exported " + path);
+    return true;
+}
+#endif

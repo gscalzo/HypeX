@@ -330,19 +330,33 @@ int render(const QStringList &arguments) {
 }
 
 int exportDeck(const QStringList &arguments) {
+#ifdef Q_OS_MACOS
+    const QStringList formats{"pdf", "pptx", "key"};
+    const QString endings = ".pdf, .pptx or .key";
+    Command command("export", "Export a presentation as PDF, PowerPoint or Keynote, chosen by the file "
+                              "extension. Keynote export needs Keynote installed.");
+#else
+    const QStringList formats{"pdf", "pptx"};
+    const QString endings = ".pdf or .pptx";
     Command command("export", "Export a presentation as PDF or PowerPoint, chosen by the file extension.");
-    command.parser.addPositionalArgument("output", "File ending in .pdf or .pptx", "<output>");
+#endif
+    command.parser.addPositionalArgument("output", "File ending in " + endings, "<output>");
     command.json();
     command.parser.process(arguments);
     const QString output = command.argument(2);
     const QString format = QFileInfo(output).suffix().toLower();
-    if (format != "pdf" && format != "pptx")
-        return fail("Name an output file ending in .pdf or .pptx.");
+    if (!formats.contains(format))
+        return fail("Name an output file ending in " + endings + ".");
     Deck deck;
     if (!command.load(deck))
         return 1;
     QDir().mkpath(QFileInfo(output).absolutePath());
-    if (!(format == "pdf" ? deck.exportPdf(output) : deck.exportPptx(output)))
+    const bool exported = format == "pdf"    ? deck.exportPdf(output)
+#ifdef Q_OS_MACOS
+                          : format == "key"  ? deck.exportKeynote(output)
+#endif
+                                             : deck.exportPptx(output);
+    if (!exported)
         return fail(deck.status());
     if (command.parser.isSet("json"))
         print({{"output", QFileInfo(output).absoluteFilePath()}, {"format", format}, {"slides", deck.count()}});
@@ -463,7 +477,11 @@ QString cliSummary() {
            "  check <presentation>            Report every problem, with slide and line\n"
            "  slides <presentation>           Outline the slides\n"
            "  render <presentation>           Render one slide or all of them to PNG\n"
+#ifdef Q_OS_MACOS
+           "  export <presentation> <output>  Export PDF, PowerPoint or Keynote\n"
+#else
            "  export <presentation> <output>  Export PDF or PowerPoint\n"
+#endif
            "  themes                          List installed themes\n"
            "  help format                     How to write a presentation\n"
            "  skill [install]                 Print the skill for coding agents, or install it";
