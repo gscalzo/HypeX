@@ -1152,6 +1152,53 @@ class HypeTests : public QObject {
         painter.end();
         QVERIFY(warning.contains("Diagram text"));
     }
+    void textSitsWhereTheSlideOrDeckSays() {
+        QVariantMap palette{{"background", "#000000"}, {"foreground", "#ffffff"},
+                            {"accent", "#ffffff"}, {"font", "JetBrains Mono"}};
+        // The text's ink, in 1080p slide units.
+        auto ink = [&](const QString &source) {
+            QImage image(480, 270, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::black);
+            QPainter painter(&image);
+            paintSlide(&painter, image.rect(), source, "/tmp", palette);
+            painter.end();
+            QRect found;
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    if (qRed(image.pixel(x, y)) > 128)
+                        found |= QRect(x, y, 1, 1);
+            return QRect(found.x() * 4, found.y() * 4, found.width() * 4, found.height() * 4);
+        };
+        auto at = [&](const QString &settings) {
+            return ink("<!-- hype: " + settings + " -->\n\n# Hi\n");
+        };
+        const QRect middle = ink("# Hi\n");
+        QVERIFY(qAbs(middle.center().x() - 960) < 20 && qAbs(middle.center().y() - 540) < 40);
+        for (const QString &vertical : {"top", "center", "bottom"})
+            for (const QString &horizontal : {"left", "center", "right"}) {
+                const QRect box = at("alignment=\"" + horizontal + "\" vertical_alignment=\"" + vertical + "\"");
+                const int x = horizontal == "left" ? box.left() - 130
+                              : horizontal == "right" ? 1790 - box.right() : box.center().x() - 960;
+                const int y = vertical == "top" ? box.top() - 90
+                              : vertical == "bottom" ? 990 - box.bottom() : box.center().y() - 540;
+                QVERIFY2(qAbs(x) < 40 && qAbs(y) < 90, qPrintable(horizontal + " " + vertical));
+            }
+        // The deck's default moves every slide, lists too; a slide's own setting, even "auto", wins.
+        palette["alignment"] = "right";
+        palette["vertical_alignment"] = "top";
+        QVERIFY(ink("# Hi\n").right() > 1740 && ink("# Hi\n").top() < 150);
+        QVERIFY(ink("- one\n- two\n").right() > 1700);
+        QCOMPARE(at("alignment=\"auto\" vertical_alignment=\"auto\""), middle);
+        QVERIFY(at("alignment=\"left\"").left() < 180 && at("alignment=\"left\"").top() < 150);
+        // A headline above a diagram keeps its band whatever the deck says.
+        const QRect band = ink("# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```");
+        QVERIFY(band.top() > 40 && band.top() < 140);
+        // A setting shown as code is only code.
+        palette.remove("alignment");
+        palette.remove("vertical_alignment");
+        QCOMPARE(slideSetting("```html\n<!-- hype: vertical_alignment=\"top\" -->\n```\n", "vertical_alignment"),
+                 QString());
+    }
     void pasteNamedMedia() {
         QTemporaryDir tmp;
         Deck d;
@@ -3125,14 +3172,14 @@ class HypeTests : public QObject {
         {
             // Without bold settings, bold keeps the text font in the accent color.
             QTextDocument doc;
-            layoutSlideText(doc, "Normal **Bold** normal", deck.palette(), 60, 1660, true, false);
+            layoutSlideText(doc, "Normal **Bold** normal", deck.palette(), 60, 1660, Qt::AlignHCenter, false);
             QCOMPARE(formatOf(doc, "Bold").foreground().color(), QColor("#6e6e6e"));
             QCOMPARE(formatOf(doc, "Bold").fontFamilies().toStringList(), QStringList{"Arial"});
         }
         deck.editSource("---\nfont: \"Arial\"\nbold_font: \"Arial Black\"\nbold_color: \"#d0021b\"\n"
                         "color_accent: \"#6e6e6e\"\n---\n\n# Title **Big**\n\nNormal **Bold** normal\n");
         QTextDocument doc;
-        layoutSlideText(doc, "# Title **Big**\n\nNormal **Bold** normal", deck.palette(), 60, 1660, true, false);
+        layoutSlideText(doc, "# Title **Big**\n\nNormal **Bold** normal", deck.palette(), 60, 1660, Qt::AlignHCenter, false);
         QCOMPARE(formatOf(doc, "Bold").foreground().color(), QColor("#d0021b"));
         QCOMPARE(formatOf(doc, "Bold").fontFamilies().toStringList(), QStringList{"Arial Black"});
         QCOMPARE(formatOf(doc, "Normal").foreground().color(), deck.foreground());
@@ -3164,7 +3211,7 @@ class HypeTests : public QObject {
             for (const auto &word : markedWords) {
                 QTextDocument doc;
                 layoutSlideText(doc, QString(level, '#') + " No more " + word + " programmers,\n" +
-                    QString(level, '#') + " just programmers\n\nPlain text", deck.palette(), 60, 1660, true, false);
+                    QString(level, '#') + " just programmers\n\nPlain text", deck.palette(), 60, 1660, Qt::AlignHCenter, false);
                 auto formatAt = [&](int position) {
                     QTextCursor cursor(&doc);
                     cursor.setPosition(position);

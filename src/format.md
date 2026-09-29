@@ -38,6 +38,12 @@ a font and color of its own, add `bold_font: "Arial Black"` and
 `bold_color: "#d0021b"`; either can be left out. Choosing a theme keeps
 them. Hype on Omarchy ignores them and shows its usual bold.
 
+Text is centered on the slide, with lists, quotes, code and tables starting
+on the left. `alignment: left` (or `center`, `right`) and
+`vertical_alignment: top` (or `center`, `bottom`) in the front matter move
+it on every slide, lists included; a slide's own setting (see Slide settings)
+overrides them. Hype on Omarchy ignores both keys.
+
 For a deck that looks the same everywhere, use a font Omarchy installs by
 default: JetBrains Mono, Noto, or iA Writer. `hype check` warns about any
 other `font` or `bold_font`.
@@ -86,10 +92,19 @@ a note. Put several in one comment: `<!-- hype: background="#000000" foreground=
 | --- | --- |
 | `background="#rrggbb"` | This slide's background color |
 | `foreground="#rrggbb"` | This slide's text color |
-| `alignment="left"` | Left-align the text; `"center"` centers it |
+| `alignment="left"` | Align the text to the left; also `"center"`, `"right"`, or `"auto"` for the usual rule |
+| `vertical_alignment="top"` | Move the text to the top; also `"center"`, `"bottom"`, or `"auto"` (centered) |
 | `duration="20m"` | On the first slide only: the talk's length, counted down in Presenter View from the second slide. Also `45 min`, `1h 30m`, `90s`, `25:00` |
 
-`hype check` warns about a length it can't read, or one on a later slide.
+`alignment` and `vertical_alignment` override the front matter for their slide.
+The whole text moves as one block, over the picture on an image slide. Above
+a video or diagram the headline keeps its band at the top and ignores
+`vertical_alignment`. Hype on Omarchy reads `alignment="left"` and `"center"`
+and ignores the other values and `vertical_alignment`.
+
+`hype check` warns about a length it can't read, or one on a later slide; about
+an alignment it can't read; and about a video or diagram slide that sets its own
+`vertical_alignment` to `top` or `bottom`.
 
 ## Images and video
 

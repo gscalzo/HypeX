@@ -556,6 +556,9 @@ QVariantMap Deck::palette() const {
     colors["bold_font"] = scalar(m_parsed.header, "bold_font");
     if (const QString bold = scalar(m_parsed.header, "bold_color"); QColor(bold).isValid())
         colors["bold_color"] = bold;
+    // Where text sits on every slide unless a slide says otherwise. Hype ignores both keys.
+    colors["alignment"] = scalar(m_parsed.header, "alignment");
+    colors["vertical_alignment"] = scalar(m_parsed.header, "vertical_alignment");
     m_paletteHeader = m_parsed.header;
     m_paletteCache = colors;
     return colors;
