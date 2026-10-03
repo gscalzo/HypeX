@@ -29,5 +29,7 @@ HEADERS += ../src/mermaid.h
 macx {
     CONFIG -= app_bundle
     INCLUDEPATH += /opt/homebrew/include
-    LIBS += -L/opt/homebrew/lib
+    LIBS += -L/opt/homebrew/lib -framework CoreServices
+    SOURCES += ../src/keynote.cpp
+    HEADERS += ../src/keynote.h
 }

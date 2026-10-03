@@ -2,7 +2,7 @@
 name: hype
 description: |
   Make and edit slide presentations with Hype, which turns one Markdown file into
-  slides, PDF, and PowerPoint. Use for ANY request to create, change, review, or
+  slides, PDF, PowerPoint, and (on macOS) Keynote. Use for ANY request to create, change, review, or
   export a presentation, deck, slides, talk, or keynote, and for any .md file
   that is a Hype presentation.
 ---
@@ -29,16 +29,17 @@ diagrams, for this version of Hype.
    split the slide.
 4. Look: `hype render <file> --slide N -o /tmp/slide.png`, then view the PNG.
    Do this for slides whose layout matters: images, code, long text.
-5. Export when asked: `hype export <file> talk.pdf` or `talk.pptx`. A `.pptx`
-   carries the speaker notes, formatted; its slides are pictures, so changes
-   go in the Markdown, followed by a new export.
+5. Export when asked: `hype export <file> talk.pdf`, `talk.pptx`, or on macOS
+   `talk.key`. A `.pptx` or `.key` carries the speaker notes, formatted; its
+   slides are pictures, so changes go in the Markdown, followed by a new export.
 
 ## Where things go
 
 `hype help format` has the details; this is where to look for them.
 
 - What the speaker says: `<!-- comments -->` on the slide. They appear in
-  Presenter View and on the PowerPoint notes pages, never on the slide.
+  Presenter View and on the PowerPoint and Keynote notes pages, never on the
+  slide.
 - The talk's length: `<!-- hype: duration="20m" -->` on the first slide, for
   Presenter View's countdown.
 - The deck's look: `theme`, `font`, and `color_*` in the front matter. For bold

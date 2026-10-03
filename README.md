@@ -9,7 +9,7 @@ The presentation is the same Markdown file on both. HypeX is Hype's own code (pa
 ## What's different from Hype
 
 - **Built for macOS.** A native `HypeX.app` with macOS file dialogs, Finder **Open With**, and ⌘ shortcuts.
-- **Export to PDF and PowerPoint.** The same exporters as Hype on Omarchy. PowerPoint files also get your presenter notes, with their formatting.
+- **Export to PDF, PowerPoint and Keynote.** The same PDF and PowerPoint exporters as Hype on Omarchy. PowerPoint files also get your presenter notes, with their formatting. Keynote export is HypeX's own; Hype on Omarchy has no Keynote.
 - **Omarchy's themes built in.** The 22 stock Omarchy themes ship inside the app, so a deck previews in the theme it will be presented with.
 - **Font check.** `hype check` warns when a deck uses a font that Omarchy doesn't install by default, because text is sized to fit and another font changes the layout.
 - **Two features ahead of Hype.** HypeX includes presenter view ([omacom/hype#6](https://github.com/omacom/hype/pull/6)) and Mermaid flowcharts ([omacom/hype#9](https://github.com/omacom/hype/pull/9)), both still open upstream. Until #9 is merged, a deck with a `mermaid` block needs a Hype build with that change to show the diagram on Omarchy; stock Hype shows it as a code block.
@@ -305,6 +305,16 @@ Anything else stays as written, so `5 * 3` or `snake_case` is safe. A fenced cod
 
 From the command line, `hype export talk/presentation.md talk.pptx` does the same.
 
+### Export to Keynote
+
+**⌥⌘E** (or **File → Export as Keynote…**) exports a `.key`. HypeX makes the PowerPoint export and has Keynote convert it, so the Keynote presentation looks exactly like the PowerPoint one: the same 4K slide pictures and videos, byte for byte, with your notes (formatted) and each video's `loop` and `muted` settings. As in PowerPoint, slide text can't be edited in Keynote.
+
+- **Keynote must be installed.** It's free on the Mac App Store.
+- **Allow HypeX to control Keynote.** macOS asks the first time you export. If you said no, turn HypeX on under **System Settings → Privacy & Security → Automation**. From the command line, the permission belongs to your terminal app.
+- **Keynote opens briefly.** If Keynote wasn't running, HypeX quits it again when the export is done.
+
+From the command line, `hype export talk/presentation.md talk.key` does the same. Hype on Omarchy can't export to Keynote.
+
 ## Use HypeX from the command line
 
 The `hype` command needs no window, so scripts and coding agents can build, check, and export presentations:
@@ -314,7 +324,7 @@ hype new talk/presentation.md --title "My talk" --theme tokyo-night
 hype check talk/presentation.md                   # every problem, with its slide and line
 hype slides talk/presentation.md                  # an outline of the slides
 hype render talk/presentation.md --slide 3 -o slide.png
-hype export talk/presentation.md talk.pdf         # or talk.pptx
+hype export talk/presentation.md talk.pdf         # or talk.pptx, or talk.key on a Mac
 hype themes
 ```
 
@@ -330,6 +340,7 @@ Press **?** in HypeX to see them all. Page Up/Down and Home/End are **fn** with 
 | ⌘S / ⇧⌘S | Save / save as |
 | ⌘E | Export as PDF |
 | ⇧⌘E | Export as PowerPoint |
+| ⌥⌘E | Export as Keynote |
 | ⌥⌘P or F5 | Present |
 | ⌥⌘R | Rehearse in Presenter View |
 | ⌘− / ⌘= | Smaller / larger notes in Presenter View |

@@ -731,6 +731,8 @@ ApplicationWindow {
     Shortcut { enabled: !win.popupOpen && !deck.compressingImage; sequences: [StandardKey.SaveAs]; onActivated: deck.saveAs() }
     Shortcut { sequence: "Ctrl+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pdf") }
     Shortcut { sequence: "Ctrl+Shift+E"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("pptx") }
+    // Keynote converts the PowerPoint export, so this is macOS only.
+    Shortcut { sequence: "Ctrl+Alt+E"; enabled: MacKeys.mac && !win.popupOpen && !deck.compressingImage && !win.presenting && !deck.exporting; onActivated: deck.exportDialog("key") }
     Shortcut { sequences: ["?", "Shift+?"]; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting && !slideEditor.activeFocus && !sourceEditor.activeFocus; onActivated: shortcutsOverlay.open() }
     Shortcut { sequence: "F1"; enabled: !win.popupOpen && !deck.compressingImage && !win.presenting; onActivated: shortcutsOverlay.open() }
     Shortcut { sequence: MacKeys.overview; enabled: !win.popupOpen && !deck.compressingImage && (!win.presenting); onActivated: win.toggleOverview() }
@@ -1126,6 +1128,7 @@ ApplicationWindow {
                     AppMenuSeparator {}
                     AppMenuItem { text: "Export as PDF…"; hint: "Ctrl+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pdf") }
                     AppMenuItem { text: "Export as PowerPoint…"; hint: "Ctrl+Shift+E"; enabled: !deck.exporting; onTriggered: deck.exportDialog("pptx") }
+                    AppMenuItem { text: "Export as Keynote…"; hint: "Ctrl+Alt+E"; visible: MacKeys.mac; height: visible ? implicitHeight : 0; enabled: !deck.exporting; onTriggered: deck.exportDialog("key") }
                     AppMenuSeparator {}
                     AppMenuItem { text: "Version history…"; onTriggered: historyDialog.open() }
                 }
@@ -1154,8 +1157,8 @@ ApplicationWindow {
         readonly property var groups: [
             { title: "Presentation", keys: [
                 ["Ctrl+N", "New presentation"], ["Ctrl+O", "Open"], ["Ctrl+S", "Save"], ["Ctrl+Shift+S", "Save as"],
-                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"], ["Ctrl+Space / F5", "Present"], ["Ctrl+Alt+R", "Rehearse in Presenter View"], ["Esc", "Stop presenting"],
-                ["Space", "Play or pause video while presenting"] ] },
+                ["Ctrl+E", "Export as PDF"], ["Ctrl+Shift+E", "Export as PowerPoint"]].concat(MacKeys.mac ? [["Ctrl+Alt+E", "Export as Keynote"]] : []).concat([["Ctrl+Space / F5", "Present"], ["Ctrl+Alt+R", "Rehearse in Presenter View"], ["Esc", "Stop presenting"],
+                ["Space", "Play or pause video while presenting"] ]) },
             { title: "View", keys: [
                 ["Ctrl+M", "Overview on or off"], ["Ctrl+.", "Markdown source on or off"],
                 ["Tab", "Switch between slides and editor"], ["Enter", "Open slide from Overview"],

@@ -17,6 +17,8 @@ APP = Path(__file__).resolve().parents[1] / ('build-macos/HypeX.app/Contents/Mac
 
 # LibreOffice's command is soffice on macOS.
 OFFICE = shutil.which('libreoffice') or shutil.which('soffice')
+KEYNOTE = sys.platform == 'darwin' and subprocess.run(
+    ['mdfind', 'kMDItemCFBundleIdentifier == com.apple.Keynote'], capture_output=True, text=True).stdout.strip()
 
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
@@ -437,6 +439,33 @@ class ExportTests(unittest.TestCase):
         pdf = output / 'talk.pdf'
         self.assertTrue(pdf.exists(), result.stdout + result.stderr)
         self.assertTrue(pdf.read_bytes().startswith(b'%PDF-'))
+
+    @unittest.skipUnless(os.environ.get('HYPE_KEYNOTE_TESTS') and KEYNOTE,
+                         'Set HYPE_KEYNOTE_TESTS=1 to export through Keynote')
+    def test_keynote_keeps_the_powerpoint_pictures_videos_and_notes(self):
+        self.movie()
+        self.export('<!-- **Speaker** notes -->\n\n# Hello\n\n---\n\n![loop muted](demo.mp4)\n')
+        keynote = self.root / 'talk.key'
+        result = subprocess.run([str(self.app), str(self.root / 'presentation.md'), '--key', str(keynote)],
+                                env=self.env, capture_output=True, text=True, timeout=300)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Keynote stores the PowerPoint export's pictures and videos unchanged.
+        def media(path):
+            with zipfile.ZipFile(path) as archive:
+                return {archive.read(name) for name in archive.namelist()
+                        if name.endswith('.mp4') or (name.endswith('.png') and
+                            struct.unpack('>II', archive.read(name)[16:24]) == (3840, 2160))}
+        self.assertTrue(media(self.output))
+        self.assertLessEqual(media(self.output), media(keynote))
+        script = ('on run argv\n tell application id "com.apple.Keynote"\n'
+                  '  set d to missing value\n'
+                  '  repeat until d is not missing value\n'
+                  '   set d to open (POSIX file (item 1 of argv))\n   delay 0.5\n  end repeat\n'
+                  '  set r to {presenter notes of slide 1 of d as text, repetition method of movie 1 of slide 2 of d as text}\n'
+                  '  close d saving no\n  return r\n end tell\nend run')
+        opened = subprocess.run(['/usr/bin/osascript', '-e', script, str(keynote)],
+                                capture_output=True, text=True, timeout=120)
+        self.assertEqual(opened.stdout.strip(), 'Speaker notes, loop', opened.stderr)
 
 
 if __name__ == '__main__':

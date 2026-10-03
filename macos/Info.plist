@@ -28,6 +28,8 @@
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>HypeX asks Keynote to turn its PowerPoint export into a Keynote presentation.</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

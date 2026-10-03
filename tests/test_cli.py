@@ -147,7 +147,8 @@ class CliTests(unittest.TestCase):
         exported = json.loads(self.hype('export', self.deck, 'talk.pptx', '--json').stdout)
         self.assertEqual((exported['format'], exported['slides']), ('pptx', 3))
         self.assertEqual((self.root / 'talk.pptx').read_bytes()[:2], b'PK')
-        self.assertIn('.pdf or .pptx', self.hype('export', self.deck, 'talk.key', code=1).stderr)
+        endings = '.pdf, .pptx or .key' if sys.platform == 'darwin' else '.pdf or .pptx'
+        self.assertIn(endings, self.hype('export', self.deck, 'talk.docx', code=1).stderr)
 
     def test_flags_export_without_a_display_and_need_a_presentation(self):
         self.write(DECK)
